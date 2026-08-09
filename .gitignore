@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+db.sqlite3
+backend/staticfiles/
+backend/media/
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+
+# Env files
+.env
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Superpowers brainstorming artifacts (mockups, session state)
+.superpowers/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
