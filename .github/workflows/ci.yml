@@ -1,0 +1,77 @@
+name: CI
+
+on:
+     push:
+          branches:
+               - main
+          paths-ignore:
+               - "**.md"
+               - "docs/**"
+               - "*.png"
+               - "*.jpg"
+               - "*.svg"
+     pull_request:
+          branches:
+               - main
+          paths-ignore:
+               - "**.md"
+               - "docs/**"
+               - "*.png"
+               - "*.jpg"
+               - "*.svg"
+
+
+concurrency:
+     group: ci-${{ github.ref }}
+     cancel-in-progress: true
+
+
+jobs:
+     backend:
+          name: "Backend - CI"
+          runs-on: ubuntu-latest
+          timeout-minutes: 10
+
+          services:
+               postgres:
+                    image: postgres:15
+                    env:
+                         POSTGRES_DB: plataforma_eventos
+                         POSTGRES_USER: postgres
+                         POSTGRES_PASSWORD: postgres
+                    ports:
+                         - 5432:5432
+                    options: >-
+                         --health-cmd pg_isready
+                         --health-interval 5s
+                         --health-timeout 5s
+                         --health-retries 5
+
+          env:
+               SECRET_KEY: test_secret_key_only_for_ci
+               DEBUG: "True"
+               DATABASE_URL: postgresql://postgres:postgres@localhost:5432/plataforma_eventos
+
+          steps:
+               - name: Checkout do código
+                 uses: actions/checkout@v4
+
+               - name: Configurar python 3.11
+                 uses: actions/setup-python@v5
+                 with:
+                    python-version: "3.11"
+                    cache: pip
+                    cache-dependency-path:
+                         backend/requirements.txt
+
+               - name: Instalar dependências
+                 working-directory: ./backend
+                 run: pip install -r requirements.txt
+
+               - name: Verificar migrations pendentes
+                 working-directory: ./backend
+                 run: python manage.py migrate --check
+
+               - name: Executar testes com pytest
+                 working-directory: ./backend
+                 run: pytest
