@@ -68,9 +68,9 @@ jobs:
                  working-directory: ./backend
                  run: pip install -r requirements.txt
 
-               - name: Verificar migrations pendentes
+               - name: Verificar migrations em falta
                  working-directory: ./backend
-                 run: python manage.py migrate --check
+                 run: python manage.py makemigrations --check --dry-run
 
                - name: Executar testes com pytest
                  working-directory: ./backend
