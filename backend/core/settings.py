@@ -20,6 +20,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 
 # Application definition
 
