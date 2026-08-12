@@ -25,6 +25,24 @@ def catalogo(request):
 @permission_classes([AllowAny])
 def get_eventos(request):
      eventos = Event.objects.filter(is_published=True)
+
+     search = request.query_params.get('search')
+     if search:
+          eventos = eventos.filter(title__icontains=search)
+
+     date = request.query_params.get('date')
+     if date:
+          eventos = eventos.filter(date__date=date)
+
+     price_min = request.query_params.get('price_min')
+     if price_min:
+          eventos = eventos.filter(price__gte=price_min)
+
+     price_max = request.query_params.get('price_max')
+     if price_max:
+          eventos = eventos.filter(price__lte=price_max)
+
+     
      serializer = EventSerializer(eventos, many=True)
      return Response({"eventos": serializer.data}, status=status.HTTP_200_OK)
 
