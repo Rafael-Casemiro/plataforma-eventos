@@ -1,3 +1,4 @@
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -5,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.db.utils import IntegrityError
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from users.permissions import IsCliente, IsOrganizador, IsPortaria
 
@@ -295,6 +297,19 @@ class TestRefreshView:
         api_client.cookies["refresh"] = "token-invalido"
         response = api_client.post(AUTH_REFRESH_URL)
         assert response.status_code == 401
+
+    def test_expired_access_cookie_does_not_block_refresh(self, api_client, cliente_user):
+        refresh = RefreshToken.for_user(cliente_user)
+        access = refresh.access_token
+        access.set_exp(lifetime=timedelta(seconds=-10))
+
+        api_client.cookies["access"] = str(access)
+        api_client.cookies["refresh"] = str(refresh)
+
+        response = api_client.post(AUTH_REFRESH_URL)
+
+        assert response.status_code == 200
+        assert "access" in response.cookies
 
 
 @pytest.mark.django_db
