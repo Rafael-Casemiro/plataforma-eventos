@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.conf import settings
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from .serializers import UserSerializer, UserCreateSerializer, LoginSerializer
 
@@ -124,7 +125,7 @@ def logout(request):
 
      return response
 
-
+@ensure_csrf_cookie
 @api_view(['GET'])
 def me(request):
 
