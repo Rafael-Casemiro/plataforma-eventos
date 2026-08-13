@@ -2,6 +2,10 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db.utils import IntegrityError
 from django.utils import timezone
+from datetime import timedelta
+from rest_framework.test import APIClient
+from rest_framework import status
+import concurrent.futures
 
 from events.models import Event
 from reservations.models import Payment, Reservation, Ticket
@@ -10,23 +14,18 @@ User = get_user_model()
 
 
 @pytest.fixture
-def event(db):
-    organizer = User.objects.create_user(
+def api_client():
+    return APIClient()
+
+
+@pytest.fixture
+def organizer(db):
+    return User.objects.create_user(
         email="organizador_res@example.com",
         first_name="Rafael",
         last_name="Casemiro",
         password="senha123",
         role=User.Role.ORGANIZADOR,
-    )
-    return Event.objects.create(
-        title="Duna: Parte Dois",
-        date=timezone.now(),
-        location="Cine Verzel",
-        capacity=100,
-        price="35.00",
-        organizer=organizer,
-        external_ref=693134,
-        is_published=True,
     )
 
 
@@ -37,6 +36,20 @@ def customer(db):
         first_name="Joana",
         last_name="Souza",
         password="senha123",
+    )
+
+
+@pytest.fixture
+def event(db, organizer):
+    return Event.objects.create(
+        title="Duna: Parte Dois",
+        date=timezone.now() + timedelta(days=5),
+        location="Cine Verzel",
+        capacity=100,
+        price="35.00",
+        organizer=organizer,
+        external_ref=693134,
+        is_published=True,
     )
 
 
@@ -93,3 +106,104 @@ class TestPaymentModel:
         Payment.objects.create(reservation=reservation, amount="70.00", status=Payment.Status.CONFIRMADO)
 
         assert reservation.payments.count() == 2
+
+
+@pytest.mark.django_db
+class TestReservationAPI:
+    def test_create_reservation_success(self, api_client, customer, event):
+        api_client.force_authenticate(user=customer)
+        response = api_client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 2})
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.data['quantity'] == 2
+        assert response.data['status'] == Reservation.Status.PENDENTE
+
+    def test_create_reservation_invalid_quantity(self, api_client, customer, event):
+        api_client.force_authenticate(user=customer)
+        response = api_client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_reservation_unpublished_event(self, api_client, customer, event):
+        event.is_published = False
+        event.save()
+        api_client.force_authenticate(user=customer)
+        response = api_client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 2})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_reservation_past_event(self, api_client, customer, event):
+        event.date = timezone.now() - timedelta(days=1)
+        event.save()
+        api_client.force_authenticate(user=customer)
+        response = api_client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 2})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_reservation_insufficient_capacity(self, api_client, customer, event):
+        event.capacity = 1
+        event.save()
+        api_client.force_authenticate(user=customer)
+        response = api_client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 2})
+        assert response.status_code == status.HTTP_409_CONFLICT
+        
+    def test_list_mine_reservations(self, api_client, customer, event):
+        Reservation.objects.create(customer=customer, event=event, quantity=1, status=Reservation.Status.PENDENTE, expires_at=timezone.now() + timedelta(minutes=15))
+        api_client.force_authenticate(user=customer)
+        response = api_client.get('/api/v1/reservations/mine/')
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['reservas']) == 1
+
+    def test_cancel_reservation_success(self, api_client, customer, event):
+        res = Reservation.objects.create(customer=customer, event=event, quantity=1, status=Reservation.Status.PENDENTE, expires_at=timezone.now() + timedelta(minutes=15))
+        api_client.force_authenticate(user=customer)
+        response = api_client.post(f'/api/v1/reservations/{res.id}/cancel/')
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['status'] == Reservation.Status.CANCELADA
+
+    def test_cancel_reservation_someone_else(self, api_client, customer, organizer, event):
+        res = Reservation.objects.create(customer=organizer, event=event, quantity=1, status=Reservation.Status.PENDENTE, expires_at=timezone.now() + timedelta(minutes=15))
+        api_client.force_authenticate(user=customer)
+        response = api_client.post(f'/api/v1/reservations/{res.id}/cancel/')
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_cancel_already_resolved(self, api_client, customer, event):
+        res = Reservation.objects.create(customer=customer, event=event, quantity=1, status=Reservation.Status.PAGA)
+        api_client.force_authenticate(user=customer)
+        response = api_client.post(f'/api/v1/reservations/{res.id}/cancel/')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrency_anti_double_sell(organizer):
+    from django.db import connection
+    
+    # Setup objects
+    customer1 = User.objects.create_user(email="c1@example.com", first_name="A", last_name="B", password="123")
+    customer2 = User.objects.create_user(email="c2@example.com", first_name="C", last_name="D", password="123")
+    event = Event.objects.create(
+        title="Event",
+        date=timezone.now() + timedelta(days=5),
+        location="Loc",
+        capacity=1,
+        price="35.00",
+        organizer=organizer,
+        external_ref=123,
+        is_published=True,
+    )
+    
+    connection.close()
+
+    def make_request(user):
+        from rest_framework.test import APIClient
+        from django.db import connection
+        
+        client = APIClient()
+        client.force_authenticate(user=user)
+        resp = client.post('/api/v1/reservations/', {'event': event.id, 'quantity': 1})
+        connection.close()
+        return resp.status_code
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(make_request, customer1)
+        f2 = executor.submit(make_request, customer2)
+        
+        status_codes = sorted([f1.result(), f2.result()])
+        
+    assert status_codes == [201, 409]
