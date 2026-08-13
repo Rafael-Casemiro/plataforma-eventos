@@ -5,3 +5,13 @@
   --color-accent: #d8432e;
   --color-paper: #fdfaf5;
 }
+
+@layer base {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
