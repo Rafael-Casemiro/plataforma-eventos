@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { Navbar } from '../components/Navbar'
 import type { Event } from '../api/types'
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
@@ -14,8 +15,11 @@ export default function ListagemPublica() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [reservationError, setReservationError] = useState<string | null>(null)
 
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const fetchEventos = async (filters: Record<string, string>) => {
     setIsLoading(true)
@@ -51,55 +55,40 @@ export default function ListagemPublica() {
   }
 
   const handleReservation = async (eventId: number) => {
+    setReservationError(null)
+
     if (!user) {
-      alert('Você precisa estar logado para fazer uma reserva.')
+      navigate('/login', { state: { from: location } })
       return
     }
-    
+
     try {
       await api.post('/reservations/', {
         event: eventId,
         quantity: 1
       })
-      alert('Reserva efetuada com sucesso! Você tem 15 minutos para finalizar o pagamento.')
+      navigate('/reservas')
     } catch (error: any) {
-      const msg = error.response?.data?.detail || 'Erro ao efetuar reserva'
-      alert(msg)
+      setReservationError(
+        error.response?.data?.detail || 'Erro ao efetuar reserva.',
+      )
     }
   }
 
   return (
-    <main className="min-h-screen bg-paper px-4 py-10">
-      <div className="mx-auto max-w-4xl">
-        <header className="flex items-center justify-between">
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-paper px-4 py-10">
+        <div className="mx-auto max-w-5xl">
           <h1 className="font-display text-3xl font-medium text-neutral-900">
             Em cartaz
           </h1>
 
-          {user ? (
-            <div className="flex items-center gap-3 text-sm">
-              {user.role === 'organizador' && (
-                <Link to="/painel" className="font-medium text-accent">
-                  Meu painel
-                </Link>
-              )}
-              <Link to="/reservas" className="font-medium text-accent">
-                Minhas reservas
-              </Link>
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="text-neutral-500"
-              >
-                Sair
-              </button>
-            </div>
-          ) : (
-            <Link to="/login" className="text-sm font-medium text-accent">
-              Entrar
-            </Link>
-          )}
-        </header>
+        {reservationError && (
+          <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
+            {reservationError}
+          </p>
+        )}
 
         <form
           onSubmit={handleSubmit}
@@ -149,7 +138,7 @@ export default function ListagemPublica() {
             Nenhum evento encontrado.
           </p>
         ) : (
-          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+          <ul className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {eventos.map((evento) => (
               <li
                 key={evento.id}
@@ -211,7 +200,8 @@ export default function ListagemPublica() {
             ))}
           </ul>
         )}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   )
 }

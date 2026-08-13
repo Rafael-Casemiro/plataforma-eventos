@@ -31,12 +31,17 @@ export interface Ticket {
   used_at: string | null
   share_token: string
   qr_token: string
+  short_code: string
 }
 
 export interface Reservation {
   id: number
   customer: number
   event: number
+  event_title: string
+  event_date: string
+  event_location: string
+  event_poster_path: string
   quantity: number
   status: 'pendente' | 'paga' | 'recusada' | 'cancelada'
   created_at: string

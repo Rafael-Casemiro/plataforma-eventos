@@ -22,7 +22,7 @@ function App() {
           <Route
             path="/reservas"
             element={
-              <ProtectedRoute allowedRoles={['cliente', 'organizador']}>
+              <ProtectedRoute>
                 <MinhasReservas />
               </ProtectedRoute>
             }

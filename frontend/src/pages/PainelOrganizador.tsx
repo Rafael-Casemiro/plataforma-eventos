@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { AxiosError } from 'axios'
-import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useAuth } from '../context/AuthContext'
+import { Navbar } from '../components/Navbar'
 import type { Event, TmdbMovie } from '../api/types'
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w200'
@@ -40,7 +39,6 @@ function toDatetimeLocalValue(isoDate: string): string {
 }
 
 export default function PainelOrganizador() {
-  const { logout } = useAuth()
   const [form, setForm] = useState<EventFormState>(initialState)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -196,22 +194,11 @@ export default function PainelOrganizador() {
   }
 
   return (
-    <main className="min-h-screen bg-paper px-4 py-10">
-      <div className="mx-auto max-w-2xl">
-        <header className="flex items-center justify-between">
-          <Link to="/" className="text-sm font-medium text-accent">
-            ← Em cartaz
-          </Link>
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="text-sm text-neutral-500"
-          >
-            Sair
-          </button>
-        </header>
-
-        <h1 className="mt-6 font-display text-3xl font-medium text-neutral-900">
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-paper px-4 py-10">
+        <div className="mx-auto max-w-2xl">
+        <h1 className="font-display text-3xl font-medium text-neutral-900">
           Painel do organizador
         </h1>
         <p className="mt-1 text-sm text-neutral-500">
@@ -440,7 +427,8 @@ export default function PainelOrganizador() {
             </ul>
           )}
         </div>
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   )
 }

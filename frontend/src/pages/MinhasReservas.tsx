@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import { useAuth } from '../context/AuthContext'
+import { Navbar } from '../components/Navbar'
 import type { Reservation } from '../api/types'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -19,7 +18,8 @@ export default function MinhasReservas() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
-  const { logout } = useAuth()
+  const [paymentError, setPaymentError] = useState<{ id: number; message: string } | null>(null)
+  const [copiedLabel, setCopiedLabel] = useState<{ id: number; type: 'token' | 'link' } | null>(null)
   const refetchedIds = useRef(new Set<number>())
 
   const fetchReservas = useCallback(async () => {
@@ -58,45 +58,41 @@ export default function MinhasReservas() {
   }, [now, reservas, fetchReservas])
 
   const handlePayment = async (id: number, simulate: 'success' | 'fail' | 'stripe') => {
+    setPaymentError(null)
     try {
       // @ts-ignore (ignoring missing checkout_url in Reservation type for brevity)
       const response = await api.post(`/reservations/${id}/pay/`, { simulate })
-      
+
       if (simulate === 'stripe' && response.data.checkout_url) {
         window.location.href = response.data.checkout_url
         return
       }
-      
+
       setReservas((prev) =>
         prev.map((res) => (res.id === id ? response.data : res)),
       )
-      alert(simulate === 'success' ? 'Pagamento confirmado!' : 'Pagamento recusado.')
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erro ao processar pagamento.')
+      setPaymentError({
+        id,
+        message: err.response?.data?.detail || 'Erro ao processar pagamento.',
+      })
     }
   }
 
-  return (
-    <main className="min-h-screen bg-paper px-4 py-10">
-      <div className="mx-auto max-w-4xl">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-sm font-medium text-neutral-500 hover:text-neutral-900">
-              ← Voltar
-            </Link>
-            <h1 className="font-display text-3xl font-medium text-neutral-900">
-              Minhas Reservas
-            </h1>
-          </div>
+  const handleCopy = (id: number, type: 'token' | 'link', value: string) => {
+    navigator.clipboard.writeText(value)
+    setCopiedLabel({ id, type })
+    setTimeout(() => setCopiedLabel(null), 2000)
+  }
 
-          <button
-            type="button"
-            onClick={() => logout()}
-            className="text-neutral-500 text-sm"
-          >
-            Sair
-          </button>
-        </header>
+  return (
+    <>
+      <Navbar />
+      <main className="min-h-screen bg-paper px-4 py-10">
+        <div className="mx-auto max-w-4xl">
+        <h1 className="font-display text-3xl font-medium text-neutral-900">
+          Minhas Reservas
+        </h1>
 
         {isLoading ? (
           <p className="mt-10 text-center text-neutral-500">Carregando...</p>
@@ -130,8 +126,18 @@ export default function MinhasReservas() {
                   <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
                     <div>
                       <h2 className="font-display text-lg font-semibold text-neutral-900">
-                        Reserva #{reserva.id} (Evento: {reserva.event})
+                        {reserva.event_title}
                       </h2>
+                      <p className="mt-1 text-sm text-neutral-500">
+                        {reserva.event_location} —{' '}
+                        {new Date(reserva.event_date).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
                       <p className="mt-1 text-sm text-neutral-500">
                         Quantidade: {reserva.quantity} ingresso(s)
                       </p>
@@ -162,6 +168,11 @@ export default function MinhasReservas() {
                             Pagar com Stripe
                           </button>
                         </div>
+                        {paymentError && paymentError.id === reserva.id && (
+                          <p className="mt-2 text-xs font-medium text-rose-600">
+                            {paymentError.message}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -169,26 +180,35 @@ export default function MinhasReservas() {
                   {reserva.status === 'paga' && reserva.ticket && (
                     <div className="mt-4 flex flex-col items-center rounded-2xl border border-white/60 bg-white/70 p-6 shadow-lg backdrop-blur-md">
                       <QRCodeSVG value={reserva.ticket.qr_token} size={140} />
+                      <p className="mt-3 text-center text-xs text-neutral-500">
+                        Sem câmera na portaria? Informe este código:
+                      </p>
+                      <p className="mt-1 font-mono text-lg font-semibold tracking-widest text-neutral-900">
+                        {reserva.ticket.short_code}
+                      </p>
                       <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(reserva.ticket!.qr_token)
-                          alert('Token copiado!')
-                        }}
+                        onClick={() => handleCopy(reserva.id, 'token', reserva.ticket!.qr_token)}
                         className="mt-3 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
                         title="Copiar token completo para testar"
                       >
-                        Copiar Token
+                        {copiedLabel?.id === reserva.id && copiedLabel.type === 'token'
+                          ? 'Copiado!'
+                          : 'Copiar Token'}
                       </button>
                       <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/ingresso/${reserva.ticket!.share_token}`
-                          navigator.clipboard.writeText(url)
-                          alert('Link copiado!')
-                        }}
+                        onClick={() =>
+                          handleCopy(
+                            reserva.id,
+                            'link',
+                            `${window.location.origin}/ingresso/${reserva.ticket!.share_token}`,
+                          )
+                        }
                         className="mt-1 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
                         title="Copiar link publico do ingresso"
                       >
-                        Copiar link para compartilhar
+                        {copiedLabel?.id === reserva.id && copiedLabel.type === 'link'
+                          ? 'Copiado!'
+                          : 'Copiar link para compartilhar'}
                       </button>
                     </div>
                   )}
@@ -197,7 +217,8 @@ export default function MinhasReservas() {
             })}
           </ul>
         )}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   )
 }
