@@ -33,9 +33,17 @@ const initialState: EventFormState = {
   is_published: true,
 }
 
+function toDatetimeLocalValue(isoDate: string): string {
+  const date = new Date(isoDate)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 export default function PainelOrganizador() {
   const { logout } = useAuth()
   const [form, setForm] = useState<EventFormState>(initialState)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [eventos, setEventos] = useState<Event[]>([])
   const [isLoadingEventos, setIsLoadingEventos] = useState(true)
@@ -91,9 +99,51 @@ export default function PainelOrganizador() {
     setIsPickingMovie(false)
   }
 
-  const selectedMovie = form.external_ref
-    ? movies.find((movie) => movie.id === Number(form.external_ref))
-    : undefined
+  const handleEdit = (evento: Event) => {
+    setEditingId(evento.id)
+    setForm({
+      title: evento.title,
+      description: evento.description,
+      date: toDatetimeLocalValue(evento.date),
+      location: evento.location,
+      capacity: String(evento.capacity),
+      price: evento.price,
+      external_ref: String(evento.external_ref),
+      external_title: evento.external_title,
+      poster_path: evento.poster_path,
+      is_published: evento.is_published,
+    })
+    setIsPickingMovie(false)
+    setError(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setForm(initialState)
+    setIsPickingMovie(true)
+    setError(null)
+  }
+
+  const handleDelete = async (evento: Event) => {
+    if (!window.confirm(`Remover o evento "${evento.title}"?`)) {
+      return
+    }
+
+    setDeletingId(evento.id)
+    setError(null)
+
+    try {
+      await api.delete(`/events/${evento.id}/`)
+      setEventos((prev) => prev.filter((item) => item.id !== evento.id))
+      if (editingId === evento.id) {
+        handleCancelEdit()
+      }
+    } catch {
+      setError('Não foi possível remover o evento.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -106,20 +156,40 @@ export default function PainelOrganizador() {
 
     setIsSubmitting(true)
 
+    const payload = {
+      ...form,
+      capacity: Number(form.capacity),
+      external_ref: Number(form.external_ref),
+    }
+
     try {
-      const response = await api.post<Event>('/events/create/', {
-        ...form,
-        capacity: Number(form.capacity),
-        external_ref: Number(form.external_ref),
-      })
-      setEventos((prev) => [response.data, ...prev])
+      if (editingId) {
+        const response = await api.patch<Event>(
+          `/events/${editingId}/`,
+          payload,
+        )
+        setEventos((prev) =>
+          prev.map((evento) =>
+            evento.id === editingId ? response.data : evento,
+          ),
+        )
+        setEditingId(null)
+      } else {
+        const response = await api.post<Event>('/events/create/', payload)
+        setEventos((prev) => [response.data, ...prev])
+      }
       setForm(initialState)
       setIsPickingMovie(true)
     } catch (err) {
       const axiosError = err as AxiosError<Record<string, string[]>>
       const data = axiosError.response?.data
       const firstError = data ? Object.values(data)[0]?.[0] : undefined
-      setError(firstError ?? 'Não foi possível criar o evento.')
+      setError(
+        firstError ??
+          (editingId
+            ? 'Não foi possível salvar as alterações.'
+            : 'Não foi possível criar o evento.'),
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -144,7 +214,9 @@ export default function PainelOrganizador() {
         <h1 className="mt-6 font-display text-3xl font-medium text-neutral-900">
           Painel do organizador
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">Crie um novo evento.</p>
+        <p className="mt-1 text-sm text-neutral-500">
+          {editingId ? 'Edite os dados do evento.' : 'Crie um novo evento.'}
+        </p>
 
         {error && (
           <p className="mt-4 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
@@ -158,21 +230,18 @@ export default function PainelOrganizador() {
               Filme (TMDb)
             </p>
 
-            {selectedMovie && !isPickingMovie ? (
+            {form.external_ref && !isPickingMovie ? (
               <div className="mt-1 flex items-center gap-3 rounded-lg border border-black/10 p-3">
-                {selectedMovie.poster_path && (
+                {form.poster_path && (
                   <img
-                    src={`${TMDB_IMAGE_BASE}${selectedMovie.poster_path}`}
+                    src={`${TMDB_IMAGE_BASE}${form.poster_path}`}
                     alt=""
                     className="h-16 w-11 rounded object-cover"
                   />
                 )}
                 <div className="flex-1">
                   <p className="font-medium text-neutral-900">
-                    {selectedMovie.titulo}
-                  </p>
-                  <p className="text-xs text-neutral-500">
-                    {selectedMovie.data_lancamento}
+                    {form.external_title}
                   </p>
                 </div>
                 <button
@@ -298,13 +367,29 @@ export default function PainelOrganizador() {
             Publicar imediatamente
           </label>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-lg bg-accent py-2 font-medium text-white disabled:opacity-60"
-          >
-            {isSubmitting ? 'Criando...' : 'Criar evento'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 rounded-lg bg-accent py-2 font-medium text-white disabled:opacity-60"
+            >
+              {isSubmitting
+                ? 'Salvando...'
+                : editingId
+                  ? 'Salvar alterações'
+                  : 'Criar evento'}
+            </button>
+
+            {editingId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-sm text-neutral-500"
+              >
+                Cancelar edição
+              </button>
+            )}
+          </div>
         </form>
 
         <div className="mt-10">
@@ -323,14 +408,33 @@ export default function PainelOrganizador() {
               {eventos.map((evento) => (
                 <li
                   key={evento.id}
-                  className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white p-4 shadow-sm"
                 >
-                  <p className="font-display font-medium text-neutral-900">
-                    {evento.title}
-                  </p>
-                  <p className="text-sm text-neutral-500">
-                    {evento.is_published ? 'Publicado' : 'Rascunho'}
-                  </p>
+                  <div>
+                    <p className="font-display font-medium text-neutral-900">
+                      {evento.title}
+                    </p>
+                    <p className="text-sm text-neutral-500">
+                      {evento.is_published ? 'Publicado' : 'Rascunho'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(evento)}
+                      className="text-sm font-medium text-accent"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(evento)}
+                      disabled={deletingId === evento.id}
+                      className="text-sm text-neutral-500 disabled:opacity-60"
+                    >
+                      {deletingId === evento.id ? 'Removendo...' : 'Excluir'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
