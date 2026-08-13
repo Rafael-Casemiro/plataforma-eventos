@@ -4,6 +4,8 @@ import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import type { Event } from '../api/types'
 
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
+
 export default function ListagemPublica() {
   const [eventos, setEventos] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -48,6 +50,24 @@ export default function ListagemPublica() {
     })
   }
 
+  const handleReservation = async (eventId: number) => {
+    if (!user) {
+      alert('Você precisa estar logado para fazer uma reserva.')
+      return
+    }
+    
+    try {
+      await api.post('/reservations/', {
+        event: eventId,
+        quantity: 1
+      })
+      alert('Reserva efetuada com sucesso! Você tem 15 minutos para finalizar o pagamento.')
+    } catch (error: any) {
+      const msg = error.response?.data?.detail || 'Erro ao efetuar reserva'
+      alert(msg)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-paper px-4 py-10">
       <div className="mx-auto max-w-4xl">
@@ -63,6 +83,9 @@ export default function ListagemPublica() {
                   Meu painel
                 </Link>
               )}
+              <Link to="/reservas" className="font-medium text-accent">
+                Minhas reservas
+              </Link>
               <button
                 type="button"
                 onClick={() => logout()}
@@ -130,20 +153,44 @@ export default function ListagemPublica() {
             {eventos.map((evento) => (
               <li
                 key={evento.id}
-                className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm"
+                className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm"
               >
-                <h2 className="font-display text-lg font-medium text-neutral-900">
-                  {evento.title}
-                </h2>
-                <p className="mt-1 text-sm text-neutral-500">
-                  {evento.location}
-                </p>
-                <p className="mt-1 text-sm text-neutral-500">
-                  {new Date(evento.date).toLocaleString('pt-BR')}
-                </p>
-                <p className="mt-3 font-display text-accent">
-                  R$ {evento.price}
-                </p>
+                {evento.poster_path ? (
+                  <img
+                    src={`${TMDB_IMAGE_BASE}${evento.poster_path}`}
+                    alt={evento.title}
+                    className="aspect-[2/3] w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex aspect-[2/3] w-full items-center justify-center bg-neutral-200">
+                    <span className="font-display text-4xl text-neutral-400">
+                      {evento.title.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+
+                <div className="p-5">
+                  <h2 className="font-display text-lg font-medium text-neutral-900">
+                    {evento.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {evento.location}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {new Date(evento.date).toLocaleString('pt-BR')}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="font-display text-accent">
+                      R$ {evento.price}
+                    </p>
+                    <button 
+                      onClick={() => handleReservation(evento.id)}
+                      className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+                    >
+                      Reservar
+                    </button>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
