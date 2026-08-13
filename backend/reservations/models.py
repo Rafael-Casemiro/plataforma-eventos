@@ -15,6 +15,8 @@ class Reservation(models.Model):
      event = models.ForeignKey(to=Event, on_delete=models.CASCADE, related_name='reservations')
      quantity = models.PositiveIntegerField()
      status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDENTE)
+     created_at = models.DateTimeField(auto_now_add=True)
+     expires_at = models.DateTimeField(null=True, blank=True)
 
 class Ticket(models.Model):
      reservation = models.OneToOneField(to=Reservation, on_delete=models.CASCADE, related_name='ticket')
