@@ -159,6 +159,8 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
 CORS_ALLOW_CREDENTIALS = True
 
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173').split(',')
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
