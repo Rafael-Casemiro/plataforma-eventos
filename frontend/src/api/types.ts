@@ -23,3 +23,22 @@ export interface Event {
   created_at: string
   updated_at: string
 }
+
+export interface Ticket {
+  id: number
+  code: string
+  used_at: string | null
+  share_token: string
+  qr_token: string
+}
+
+export interface Reservation {
+  id: number
+  customer: number
+  event: number
+  quantity: number
+  status: 'pendente' | 'paga' | 'recusada' | 'cancelada'
+  created_at: string
+  expires_at: string
+  ticket?: Ticket
+}

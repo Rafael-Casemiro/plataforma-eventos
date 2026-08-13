@@ -4,6 +4,8 @@ import { ProtectedRoute } from './routes/ProtectedRoute'
 import Login from './pages/Login'
 import ListagemPublica from './pages/ListagemPublica'
 import PainelOrganizador from './pages/PainelOrganizador'
+import MinhasReservas from './pages/MinhasReservas'
+import Portaria from './pages/Portaria'
 
 function App() {
   return (
@@ -13,10 +15,26 @@ function App() {
           <Route path="/" element={<ListagemPublica />} />
           <Route path="/login" element={<Login />} />
           <Route
+            path="/reservas"
+            element={
+              <ProtectedRoute allowedRoles={['cliente', 'organizador']}>
+                <MinhasReservas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/painel"
             element={
               <ProtectedRoute allowedRoles={['organizador']}>
                 <PainelOrganizador />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/portaria"
+            element={
+              <ProtectedRoute allowedRoles={['organizador', 'cliente']}>
+                <Portaria />
               </ProtectedRoute>
             }
           />
