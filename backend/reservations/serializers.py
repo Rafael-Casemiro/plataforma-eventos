@@ -46,3 +46,11 @@ class ReservationWriteSerializer(serializers.ModelSerializer):
                'event',
                'quantity',
           ]
+
+
+class SharedTicketSerializer(serializers.Serializer):
+     title = serializers.CharField(source='reservation.event.title')
+     date = serializers.DateTimeField(source='reservation.event.date')
+     location = serializers.CharField(source='reservation.event.location')
+     poster_path = serializers.CharField(source='reservation.event.poster_path')
+     quantity = serializers.IntegerField(source='reservation.quantity')

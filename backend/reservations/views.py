@@ -10,7 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
 
-from .serializers import ReservationSerializer, ReservationWriteSerializer
+from .serializers import ReservationSerializer, ReservationWriteSerializer, SharedTicketSerializer
 from .models import Reservation
 from events.models import Event
 from users.permissions import IsPortaria
@@ -262,5 +262,17 @@ def validate_ticket(request):
                
           ticket.used_at = timezone.now()
           ticket.save(update_fields=['used_at'])
-          
+
      return Response({"status": "válido", "detail": "Entrada liberada!"}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def share_ticket(request, share_token):
+     try:
+          ticket = Ticket.objects.select_related('reservation__event').get(share_token=share_token)
+     except Ticket.DoesNotExist:
+          return Response(status=status.HTTP_404_NOT_FOUND)
+
+     serializer = SharedTicketSerializer(ticket)
+     return Response(serializer.data, status=status.HTTP_200_OK)

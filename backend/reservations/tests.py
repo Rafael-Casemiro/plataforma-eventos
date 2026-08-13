@@ -203,7 +203,33 @@ def test_concurrency_anti_double_sell(organizer):
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         f1 = executor.submit(make_request, customer1)
         f2 = executor.submit(make_request, customer2)
-        
+
         status_codes = sorted([f1.result(), f2.result()])
-        
+
     assert status_codes == [201, 409]
+
+
+@pytest.mark.django_db
+class TestShareTicket:
+    def test_returns_event_data_without_sensitive_fields(self, api_client, customer, event):
+        reserva = Reservation.objects.create(
+            customer=customer, event=event, quantity=2,
+            status=Reservation.Status.PAGA,
+        )
+        ticket = Ticket.objects.create(reservation=reserva)
+
+        response = api_client.get(f'/api/v1/reservations/share/{ticket.share_token}/')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['title'] == event.title
+        assert response.data['location'] == event.location
+        assert response.data['quantity'] == 2
+        assert 'code' not in response.data
+        assert 'signature' not in response.data
+        assert 'customer' not in response.data
+
+    def test_unknown_token_returns_404(self, api_client):
+        response = api_client.get(
+            '/api/v1/reservations/share/00000000-0000-0000-0000-000000000000/'
+        )
+        assert response.status_code == status.HTTP_404_NOT_FOUND
