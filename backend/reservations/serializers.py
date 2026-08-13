@@ -15,6 +15,10 @@ class TicketSerializer(serializers.ModelSerializer):
 
 class ReservationSerializer(serializers.ModelSerializer):
      ticket = TicketSerializer(read_only=True)
+     event_title = serializers.CharField(source='event.title', read_only=True)
+     event_date = serializers.DateTimeField(source='event.date', read_only=True)
+     event_location = serializers.CharField(source='event.location', read_only=True)
+     event_poster_path = serializers.CharField(source='event.poster_path', read_only=True)
 
      class Meta:
           model = Reservation
@@ -23,6 +27,10 @@ class ReservationSerializer(serializers.ModelSerializer):
                'id',
                'customer',
                'event',
+               'event_title',
+               'event_date',
+               'event_location',
+               'event_poster_path',
                'quantity',
                'status',
                'created_at',

@@ -80,7 +80,9 @@ def list_my_reservations(request):
      )
      reservas_vencidas.update(status=Reservation.Status.CANCELADA)
 
-     reservas = Reservation.objects.filter(customer=request.user).order_by('-created_at')
+     reservas = Reservation.objects.filter(
+          customer=request.user
+     ).select_related('event', 'ticket').order_by('-created_at')
      serializer = ReservationSerializer(reservas, many=True)
 
      return Response({"reservas": serializer.data}, status=status.HTTP_200_OK)
