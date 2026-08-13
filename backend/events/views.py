@@ -1,6 +1,8 @@
 from django.shortcuts import get_object_or_404
 from datetime import date as date_cls
 from decimal import Decimal, InvalidOperation
+from django.db.models import Q, Sum
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -26,7 +28,17 @@ def catalogo(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_eventos(request):
-     eventos = Event.objects.filter(is_published=True)
+     agora = timezone.now()
+
+     eventos = Event.objects.filter(is_published=True).annotate(
+          reservado=Sum(
+               'reservations__quantity',
+               filter=Q(reservations__status='paga') | Q(
+                    reservations__status='pendente',
+                    reservations__expires_at__gt=agora,
+               ),
+          )
+     )
 
      search = request.query_params.get('search')
      if search:

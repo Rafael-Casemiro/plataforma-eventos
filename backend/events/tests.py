@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from events.models import Event
+from reservations.models import Reservation
 
 User = get_user_model()
 
@@ -218,6 +219,35 @@ class TestPublicEventListing:
 
         titles = [evento["title"] for evento in response.data["eventos"]]
         assert titles == ["Caro"]
+
+    def test_reports_vagas_disponiveis(self, api_client, organizer):
+        cliente = User.objects.create_user(
+            email="vagas.cliente@example.com", first_name="A", last_name="B",
+            password="senha123", role=User.Role.CLIENTE,
+        )
+        cheio = Event.objects.create(
+            title="Cheio", date=timezone.now(), location="Cine Verzel",
+            capacity=1, price="10.00", organizer=organizer, external_ref=1,
+            is_published=True,
+        )
+        livre = Event.objects.create(
+            title="Livre", date=timezone.now(), location="Cine Verzel",
+            capacity=10, price="10.00", organizer=organizer, external_ref=2,
+            is_published=True,
+        )
+        Reservation.objects.create(
+            customer=cliente, event=cheio, quantity=1,
+            status=Reservation.Status.PAGA,
+        )
+
+        response = api_client.get(EVENTS_LIST_URL)
+
+        vagas_por_titulo = {
+            evento["title"]: evento["vagas_disponiveis"]
+            for evento in response.data["eventos"]
+        }
+        assert vagas_por_titulo["Cheio"] == 0
+        assert vagas_por_titulo["Livre"] == 10
 
     def test_invalid_price_min_returns_400(self, api_client):
         response = api_client.get(EVENTS_LIST_URL, {"price_min": "abc"})

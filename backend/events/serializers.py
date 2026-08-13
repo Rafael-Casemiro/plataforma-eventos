@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import Event
 
 class EventSerializer(serializers.ModelSerializer):
+     vagas_disponiveis = serializers.SerializerMethodField()
+
      class Meta:
           model = Event
           fields = [
@@ -19,6 +21,7 @@ class EventSerializer(serializers.ModelSerializer):
                'is_published',
                'created_at',
                'updated_at',
+               'vagas_disponiveis',
           ]
 
           read_only_fields = [
@@ -26,6 +29,10 @@ class EventSerializer(serializers.ModelSerializer):
                'created_at',
                'updated_at',
           ]
+
+     def get_vagas_disponiveis(self, obj):
+          reservado = getattr(obj, 'reservado', None) or 0
+          return max(obj.capacity - reservado, 0)
 
 class EventWriteSerializer(serializers.ModelSerializer):
      class Meta:
