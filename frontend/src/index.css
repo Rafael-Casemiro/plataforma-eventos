@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Space Grotesk", sans-serif;
+  --color-accent: #d8432e;
+  --color-paper: #fdfaf5;
+}
