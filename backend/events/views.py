@@ -46,6 +46,14 @@ def get_eventos(request):
      serializer = EventSerializer(eventos, many=True)
      return Response({"eventos": serializer.data}, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+@permission_classes([IsOrganizador])
+def get_eventos_organizador(request):
+     eventos = Event.objects.filter(organizer=request.user)
+
+     serializer = EventSerializer(eventos, many=True)
+     return Response({"eventos": serializer.data}, status=status.HTTP_200_OK)
+
 @api_view(["POST"])
 @permission_classes([IsOrganizador])
 def criar_evento(request):

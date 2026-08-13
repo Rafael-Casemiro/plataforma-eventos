@@ -8,6 +8,7 @@ from events.models import Event
 User = get_user_model()
 
 EVENTS_LIST_URL = "/api/v1/events/"
+EVENTS_MINE_URL = "/api/v1/events/mine/"
 EVENTS_CREATE_URL = "/api/v1/events/create/"
 AUTH_LOGIN_URL = "/api/v1/auth/login/"
 
@@ -217,6 +218,44 @@ class TestPublicEventListing:
 
         titles = [evento["title"] for evento in response.data["eventos"]]
         assert titles == ["Caro"]
+
+
+@pytest.mark.django_db
+class TestOrganizerEventListing:
+    def test_returns_only_own_events_including_drafts(
+        self, api_client, organizer, another_organizer
+    ):
+        Event.objects.create(
+            title="Publicado do dono", date=timezone.now(), location="Cine Verzel",
+            capacity=10, price="10.00", organizer=organizer, external_ref=1,
+            is_published=True,
+        )
+        Event.objects.create(
+            title="Rascunho do dono", date=timezone.now(), location="Cine Verzel",
+            capacity=10, price="10.00", organizer=organizer, external_ref=2,
+            is_published=False,
+        )
+        Event.objects.create(
+            title="Publicado de outro organizador", date=timezone.now(), location="Cine Verzel",
+            capacity=10, price="10.00", organizer=another_organizer, external_ref=3,
+            is_published=True,
+        )
+
+        _login(api_client, organizer)
+
+        response = api_client.get(EVENTS_MINE_URL)
+
+        titles = {evento["title"] for evento in response.data["eventos"]}
+        assert titles == {"Publicado do dono", "Rascunho do dono"}
+
+    def test_cliente_cannot_access(self, api_client, cliente):
+        _login(api_client, cliente)
+        response = api_client.get(EVENTS_MINE_URL)
+        assert response.status_code == 403
+
+    def test_unauthenticated_cannot_access(self, api_client):
+        response = api_client.get(EVENTS_MINE_URL)
+        assert response.status_code == 401
 
 
 @pytest.mark.django_db
