@@ -5,6 +5,7 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
@@ -12,6 +13,13 @@ from .tmdb_client import TMDbClientError, buscar_filmes_em_cartaz
 from .models import Event
 from .serializers import EventSerializer, EventWriteSerializer
 from users.permissions import IsOrganizador, IsCliente, IsPortaria
+
+
+class EventPagination(PageNumberPagination):
+     page_size = 12
+     page_size_query_param = 'page_size'
+     max_page_size = 50
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -38,7 +46,7 @@ def get_eventos(request):
                     reservations__expires_at__gt=agora,
                ),
           )
-     )
+     ).order_by('date')
 
      search = request.query_params.get('search')
      if search:
@@ -69,8 +77,10 @@ def get_eventos(request):
           eventos = eventos.filter(price__lte=price_max)
 
      
-     serializer = EventSerializer(eventos, many=True)
-     return Response({"eventos": serializer.data}, status=status.HTTP_200_OK)
+     paginator = EventPagination()
+     page = paginator.paginate_queryset(eventos, request)
+     serializer = EventSerializer(page, many=True)
+     return paginator.get_paginated_response(serializer.data)
 
 @api_view(['GET'])
 @permission_classes([IsOrganizador])

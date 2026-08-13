@@ -1,6 +1,7 @@
 import stripe
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.conf import settings
@@ -14,6 +15,12 @@ from .serializers import ReservationSerializer, ReservationWriteSerializer, Shar
 from .models import Reservation
 from events.models import Event
 from users.permissions import IsPortaria
+
+
+class ReservationPagination(PageNumberPagination):
+     page_size = 10
+     page_size_query_param = 'page_size'
+     max_page_size = 50
 
 
 @api_view(["POST"])
@@ -83,9 +90,11 @@ def list_my_reservations(request):
      reservas = Reservation.objects.filter(
           customer=request.user
      ).select_related('event').prefetch_related('tickets').order_by('-created_at')
-     serializer = ReservationSerializer(reservas, many=True)
+     paginator = ReservationPagination()
+     page = paginator.paginate_queryset(reservas, request)
+     serializer = ReservationSerializer(page, many=True)
 
-     return Response({"reservas": serializer.data}, status=status.HTTP_200_OK)
+     return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(['POST'])

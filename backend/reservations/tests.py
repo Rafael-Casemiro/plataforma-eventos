@@ -159,7 +159,22 @@ class TestReservationAPI:
         api_client.force_authenticate(user=customer)
         response = api_client.get('/api/v1/reservations/mine/')
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data['reservas']) == 1
+        assert len(response.data['results']) == 1
+
+    def test_list_mine_reservations_paginates(self, api_client, customer, event):
+        for _ in range(11):
+            Reservation.objects.create(
+                customer=customer, event=event, quantity=1,
+                status=Reservation.Status.PENDENTE,
+                expires_at=timezone.now() + timedelta(minutes=15),
+            )
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.get('/api/v1/reservations/mine/')
+
+        assert response.data['count'] == 11
+        assert len(response.data['results']) == 10
+        assert response.data['next'] is not None
 
     def test_cancel_reservation_success(self, api_client, customer, event):
         res = Reservation.objects.create(customer=customer, event=event, quantity=1, status=Reservation.Status.PENDENTE, expires_at=timezone.now() + timedelta(minutes=15))

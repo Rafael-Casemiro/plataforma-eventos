@@ -162,7 +162,7 @@ class TestPublicEventListing:
 
         response = api_client.get(EVENTS_LIST_URL)
 
-        titles = [evento["title"] for evento in response.data["eventos"]]
+        titles = [evento["title"] for evento in response.data["results"]]
         assert titles == ["Publicado"]
 
     def test_does_not_require_authentication(self, api_client, published_event):
@@ -183,7 +183,7 @@ class TestPublicEventListing:
 
         response = api_client.get(EVENTS_LIST_URL, {"search": "duna"})
 
-        titles = [evento["title"] for evento in response.data["eventos"]]
+        titles = [evento["title"] for evento in response.data["results"]]
         assert titles == ["Duna: Parte Dois"]
 
     def test_filters_by_exact_date(self, api_client, organizer):
@@ -200,7 +200,7 @@ class TestPublicEventListing:
 
         response = api_client.get(EVENTS_LIST_URL, {"date": "2026-09-20"})
 
-        titles = [evento["title"] for evento in response.data["eventos"]]
+        titles = [evento["title"] for evento in response.data["results"]]
         assert titles == ["Sessão de hoje"]
 
     def test_filters_by_price_range(self, api_client, organizer):
@@ -217,8 +217,23 @@ class TestPublicEventListing:
 
         response = api_client.get(EVENTS_LIST_URL, {"price_min": "50", "price_max": "100"})
 
-        titles = [evento["title"] for evento in response.data["eventos"]]
+        titles = [evento["title"] for evento in response.data["results"]]
         assert titles == ["Caro"]
+
+    def test_paginates_results(self, api_client, organizer):
+        for indice in range(13):
+            Event.objects.create(
+                title=f"Evento {indice}", date=timezone.now(), location="Cine Verzel",
+                capacity=10, price="10.00", organizer=organizer, external_ref=indice,
+                is_published=True,
+            )
+
+        response = api_client.get(EVENTS_LIST_URL)
+
+        assert response.data["count"] == 13
+        assert len(response.data["results"]) == 12
+        assert response.data["next"] is not None
+        assert response.data["previous"] is None
 
     def test_reports_vagas_disponiveis(self, api_client, organizer):
         cliente = User.objects.create_user(
@@ -244,7 +259,7 @@ class TestPublicEventListing:
 
         vagas_por_titulo = {
             evento["title"]: evento["vagas_disponiveis"]
-            for evento in response.data["eventos"]
+            for evento in response.data["results"]
         }
         assert vagas_por_titulo["Cheio"] == 0
         assert vagas_por_titulo["Livre"] == 10
