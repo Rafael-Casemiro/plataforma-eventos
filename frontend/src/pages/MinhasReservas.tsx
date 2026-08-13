@@ -177,39 +177,59 @@ export default function MinhasReservas() {
                     )}
                   </div>
 
-                  {reserva.status === 'paga' && reserva.ticket && (
-                    <div className="mt-4 flex flex-col items-center rounded-2xl border border-white/60 bg-white/70 p-6 shadow-lg backdrop-blur-md">
-                      <QRCodeSVG value={reserva.ticket.qr_token} size={140} />
-                      <p className="mt-3 text-center text-xs text-neutral-500">
-                        Sem câmera na portaria? Informe este código:
-                      </p>
-                      <p className="mt-1 font-mono text-lg font-semibold tracking-widest text-neutral-900">
-                        {reserva.ticket.short_code}
-                      </p>
-                      <button
-                        onClick={() => handleCopy(reserva.id, 'token', reserva.ticket!.qr_token)}
-                        className="mt-3 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
-                        title="Copiar token completo para testar"
-                      >
-                        {copiedLabel?.id === reserva.id && copiedLabel.type === 'token'
-                          ? 'Copiado!'
-                          : 'Copiar Token'}
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleCopy(
-                            reserva.id,
-                            'link',
-                            `${window.location.origin}/ingresso/${reserva.ticket!.share_token}`,
-                          )
-                        }
-                        className="mt-1 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
-                        title="Copiar link publico do ingresso"
-                      >
-                        {copiedLabel?.id === reserva.id && copiedLabel.type === 'link'
-                          ? 'Copiado!'
-                          : 'Copiar link para compartilhar'}
-                      </button>
+                  {reserva.status === 'paga' && reserva.tickets.length > 0 && (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      {reserva.tickets.map((ticket, index) => (
+                        <div
+                          key={ticket.id}
+                          className="flex flex-col items-center rounded-2xl border border-white/60 bg-white/70 p-6 shadow-lg backdrop-blur-md"
+                        >
+                          {reserva.tickets.length > 1 && (
+                            <p className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+                              Ingresso {index + 1} de {reserva.tickets.length}
+                            </p>
+                          )}
+                          <QRCodeSVG value={ticket.qr_token} size={140} className="mt-2" />
+                          {ticket.used_at ? (
+                            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-emerald-600">
+                              Já utilizado
+                            </p>
+                          ) : (
+                            <>
+                              <p className="mt-3 text-center text-xs text-neutral-500">
+                                Sem câmera na portaria? Informe este código:
+                              </p>
+                              <p className="mt-1 font-mono text-lg font-semibold tracking-widest text-neutral-900">
+                                {ticket.short_code}
+                              </p>
+                            </>
+                          )}
+                          <button
+                            onClick={() => handleCopy(ticket.id, 'token', ticket.qr_token)}
+                            className="mt-3 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
+                            title="Copiar token completo para testar"
+                          >
+                            {copiedLabel?.id === ticket.id && copiedLabel.type === 'token'
+                              ? 'Copiado!'
+                              : 'Copiar Token'}
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleCopy(
+                                ticket.id,
+                                'link',
+                                `${window.location.origin}/ingresso/${ticket.share_token}`,
+                              )
+                            }
+                            className="mt-1 text-xs text-accent underline hover:text-neutral-900 cursor-pointer"
+                            title="Copiar link publico do ingresso"
+                          >
+                            {copiedLabel?.id === ticket.id && copiedLabel.type === 'link'
+                              ? 'Copiado!'
+                              : 'Copiar link para compartilhar'}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </li>

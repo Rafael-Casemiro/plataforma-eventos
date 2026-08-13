@@ -46,7 +46,7 @@ export interface Reservation {
   status: 'pendente' | 'paga' | 'recusada' | 'cancelada'
   created_at: string
   expires_at: string
-  ticket?: Ticket
+  tickets: Ticket[]
 }
 
 export interface SharedTicket {

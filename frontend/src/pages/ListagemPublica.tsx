@@ -16,6 +16,7 @@ export default function ListagemPublica() {
   const [priceMax, setPriceMax] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
+  const [quantities, setQuantities] = useState<Record<number, number>>({})
 
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -54,6 +55,13 @@ export default function ListagemPublica() {
     })
   }
 
+  const getQuantity = (eventId: number) => quantities[eventId] ?? 1
+
+  const setQuantity = (eventId: number, value: number, max: number) => {
+    const clamped = Math.min(Math.max(value, 1), Math.max(max, 1))
+    setQuantities((prev) => ({ ...prev, [eventId]: clamped }))
+  }
+
   const handleReservation = async (eventId: number) => {
     setReservationError(null)
 
@@ -65,7 +73,7 @@ export default function ListagemPublica() {
     try {
       await api.post('/reservations/', {
         event: eventId,
-        quantity: 1
+        quantity: getQuantity(eventId),
       })
       navigate('/reservas')
     } catch (error: any) {
@@ -183,14 +191,30 @@ export default function ListagemPublica() {
                       Restam {evento.vagas_disponiveis} vaga(s)
                     </p>
                   )}
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="font-display text-accent">
-                      R$ {evento.price}
-                    </p>
+                  <p className="mt-3 font-display text-accent">
+                    R$ {evento.price}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    {evento.vagas_disponiveis > 0 && (
+                      <input
+                        type="number"
+                        min={1}
+                        max={evento.vagas_disponiveis}
+                        value={getQuantity(evento.id)}
+                        onChange={(e) =>
+                          setQuantity(
+                            evento.id,
+                            Number(e.target.value),
+                            evento.vagas_disponiveis,
+                          )
+                        }
+                        className="w-14 rounded-lg border border-black/10 px-2 py-2 text-center text-sm"
+                      />
+                    )}
                     <button
                       onClick={() => handleReservation(evento.id)}
                       disabled={evento.vagas_disponiveis <= 0}
-                      className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+                      className="flex-1 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
                     >
                       {evento.vagas_disponiveis <= 0 ? 'Esgotado' : 'Reservar'}
                     </button>
