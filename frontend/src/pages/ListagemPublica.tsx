@@ -143,7 +143,7 @@ export default function ListagemPublica() {
         {isLoading ? (
           <p className="mt-10 text-center text-neutral-500">Carregando...</p>
         ) : loadError ? (
-          <p className="mt-10 text-center text-accent">{loadError}</p>
+          <p className="mt-10 text-center text-rose-600">{loadError}</p>
         ) : eventos.length === 0 ? (
           <p className="mt-10 text-center text-neutral-500">
             Nenhum evento encontrado.
@@ -155,19 +155,29 @@ export default function ListagemPublica() {
                 key={evento.id}
                 className="overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm"
               >
-                {evento.poster_path ? (
-                  <img
-                    src={`${TMDB_IMAGE_BASE}${evento.poster_path}`}
-                    alt={evento.title}
-                    className="aspect-[2/3] w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex aspect-[2/3] w-full items-center justify-center bg-neutral-200">
-                    <span className="font-display text-4xl text-neutral-400">
-                      {evento.title.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
+                <div className="relative">
+                  {evento.poster_path ? (
+                    <img
+                      src={`${TMDB_IMAGE_BASE}${evento.poster_path}`}
+                      alt={evento.title}
+                      className="aspect-[2/3] w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-[2/3] w-full items-center justify-center bg-neutral-200">
+                      <span className="font-display text-4xl text-neutral-400">
+                        {evento.title.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+
+                  {evento.vagas_disponiveis <= 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <span className="font-display text-xl font-semibold uppercase tracking-wide text-white">
+                        Esgotado
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 <div className="p-5">
                   <h2 className="font-display text-lg font-medium text-neutral-900">
@@ -179,15 +189,21 @@ export default function ListagemPublica() {
                   <p className="mt-1 text-sm text-neutral-500">
                     {new Date(evento.date).toLocaleString('pt-BR')}
                   </p>
+                  {evento.vagas_disponiveis > 0 && (
+                    <p className="mt-1 text-xs text-neutral-400">
+                      Restam {evento.vagas_disponiveis} vaga(s)
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center justify-between">
                     <p className="font-display text-accent">
                       R$ {evento.price}
                     </p>
-                    <button 
+                    <button
                       onClick={() => handleReservation(evento.id)}
-                      className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
+                      disabled={evento.vagas_disponiveis <= 0}
+                      className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
                     >
-                      Reservar
+                      {evento.vagas_disponiveis <= 0 ? 'Esgotado' : 'Reservar'}
                     </button>
                   </div>
                 </div>

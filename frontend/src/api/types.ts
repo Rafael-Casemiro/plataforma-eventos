@@ -22,6 +22,7 @@ export interface Event {
   is_published: boolean
   created_at: string
   updated_at: string
+  vagas_disponiveis: number
 }
 
 export interface Ticket {
@@ -41,4 +42,12 @@ export interface Reservation {
   created_at: string
   expires_at: string
   ticket?: Ticket
+}
+
+export interface SharedTicket {
+  title: string
+  date: string
+  location: string
+  poster_path: string
+  quantity: number
 }

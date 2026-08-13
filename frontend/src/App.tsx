@@ -6,6 +6,7 @@ import ListagemPublica from './pages/ListagemPublica'
 import PainelOrganizador from './pages/PainelOrganizador'
 import MinhasReservas from './pages/MinhasReservas'
 import Portaria from './pages/Portaria'
+import IngressoCompartilhado from './pages/IngressoCompartilhado'
 
 function App() {
   return (
@@ -14,6 +15,10 @@ function App() {
         <Routes>
           <Route path="/" element={<ListagemPublica />} />
           <Route path="/login" element={<Login />} />
+          <Route
+            path="/ingresso/:shareToken"
+            element={<IngressoCompartilhado />}
+          />
           <Route
             path="/reservas"
             element={
@@ -33,7 +38,7 @@ function App() {
           <Route
             path="/portaria"
             element={
-              <ProtectedRoute allowedRoles={['organizador', 'cliente']}>
+              <ProtectedRoute allowedRoles={['portaria']}>
                 <Portaria />
               </ProtectedRoute>
             }
