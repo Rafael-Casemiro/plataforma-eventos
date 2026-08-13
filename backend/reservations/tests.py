@@ -1,6 +1,5 @@
 import pytest
 from django.contrib.auth import get_user_model
-from django.db.utils import IntegrityError
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework.test import APIClient
@@ -87,12 +86,13 @@ class TestTicketModel:
         assert ticket.code is not None
         assert ticket.share_token != ticket.code
 
-    def test_reservation_can_only_have_one_ticket(self, event, customer):
-        reservation = Reservation.objects.create(customer=customer, event=event, quantity=1)
+    def test_reservation_can_have_multiple_tickets(self, event, customer):
+        reservation = Reservation.objects.create(customer=customer, event=event, quantity=3)
+        Ticket.objects.create(reservation=reservation)
+        Ticket.objects.create(reservation=reservation)
         Ticket.objects.create(reservation=reservation)
 
-        with pytest.raises(IntegrityError):
-            Ticket.objects.create(reservation=reservation)
+        assert reservation.tickets.count() == 3
 
     def test_two_tickets_never_share_the_same_code(self, event, customer):
         reservation_a = Reservation.objects.create(customer=customer, event=event, quantity=1)
@@ -257,6 +257,26 @@ def paid_ticket(customer, event):
     )
     confirm_payment_and_generate_ticket(reserva.id)
     return Ticket.objects.get(reservation=reserva)
+
+
+@pytest.mark.django_db
+class TestConfirmPaymentGeneratesOneTicketPerUnit:
+    def test_creates_one_ticket_per_quantity_unit(self, customer, event):
+        from reservations.views import confirm_payment_and_generate_ticket
+
+        reserva = Reservation.objects.create(
+            customer=customer, event=event, quantity=3,
+            status=Reservation.Status.PENDENTE,
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+
+        confirm_payment_and_generate_ticket(reserva.id)
+
+        tickets = Ticket.objects.filter(reservation=reserva)
+        assert tickets.count() == 3
+        assert len({t.code for t in tickets}) == 3
+        assert len({t.short_code for t in tickets}) == 3
+        assert all(t.signature for t in tickets)
 
 
 @pytest.mark.django_db

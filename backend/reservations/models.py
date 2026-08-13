@@ -19,7 +19,7 @@ class Reservation(models.Model):
      expires_at = models.DateTimeField(null=True, blank=True)
 
 class Ticket(models.Model):
-     reservation = models.OneToOneField(to=Reservation, on_delete=models.CASCADE, related_name='ticket')
+     reservation = models.ForeignKey(to=Reservation, on_delete=models.CASCADE, related_name='tickets')
      code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
      signature = models.CharField(max_length=128, blank=True)
      short_code = models.CharField(max_length=10, unique=True, null=True, blank=True)

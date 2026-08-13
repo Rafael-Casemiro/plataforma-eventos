@@ -14,7 +14,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
 
 class ReservationSerializer(serializers.ModelSerializer):
-     ticket = TicketSerializer(read_only=True)
+     tickets = TicketSerializer(read_only=True, many=True)
      event_title = serializers.CharField(source='event.title', read_only=True)
      event_date = serializers.DateTimeField(source='event.date', read_only=True)
      event_location = serializers.CharField(source='event.location', read_only=True)
@@ -35,7 +35,7 @@ class ReservationSerializer(serializers.ModelSerializer):
                'status',
                'created_at',
                'expires_at',
-               'ticket',
+               'tickets',
           ]
 
           read_only_fields = [

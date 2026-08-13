@@ -82,7 +82,7 @@ def list_my_reservations(request):
 
      reservas = Reservation.objects.filter(
           customer=request.user
-     ).select_related('event', 'ticket').order_by('-created_at')
+     ).select_related('event').prefetch_related('tickets').order_by('-created_at')
      serializer = ReservationSerializer(reservas, many=True)
 
      return Response({"reservas": serializer.data}, status=status.HTTP_200_OK)
@@ -205,15 +205,17 @@ def confirm_payment_and_generate_ticket(reserva_id):
           Payment.objects.create(reservation=reserva, amount=amount_due, status=Payment.Status.CONFIRMADO)
           reserva.status = Reservation.Status.PAGA
           reserva.save(update_fields=['status'])
-          
-          ticket = Ticket.objects.create(reservation=reserva)
-          payload = f"{ticket.code}:{reserva.event_id}".encode('utf-8')
-          key = settings.SECRET_KEY.encode('utf-8')
-          signature = hmac.new(key, payload, hashlib.sha256).hexdigest()
 
-          ticket.signature = signature
-          ticket.short_code = _gerar_short_code()
-          ticket.save(update_fields=['signature', 'short_code'])
+          # Um ticket por unidade reservada — cada um validado individualmente na portaria
+          for _ in range(reserva.quantity):
+               ticket = Ticket.objects.create(reservation=reserva)
+               payload = f"{ticket.code}:{reserva.event_id}".encode('utf-8')
+               key = settings.SECRET_KEY.encode('utf-8')
+               signature = hmac.new(key, payload, hashlib.sha256).hexdigest()
+
+               ticket.signature = signature
+               ticket.short_code = _gerar_short_code()
+               ticket.save(update_fields=['signature', 'short_code'])
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
