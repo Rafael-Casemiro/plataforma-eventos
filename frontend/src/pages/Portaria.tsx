@@ -34,16 +34,28 @@ export default function Portaria() {
     }
   }
 
-  const getStatusColor = () => {
+  const getStatusPanelClasses = () => {
     switch (status) {
-      case 'válido': return 'bg-green-100 text-green-800 border-green-500'
-      case 'inválido': return 'bg-red-100 text-red-800 border-red-500'
-      case 'já utilizado': return 'bg-orange-100 text-orange-800 border-orange-500'
-      case 'evento errado': return 'bg-blue-100 text-blue-800 border-blue-500'
-      case 'loading': return 'bg-neutral-100 text-neutral-800 border-neutral-300 animate-pulse'
-      default: return 'bg-neutral-100 text-neutral-800 border-neutral-300'
+      case 'válido': return 'bg-emerald-600'
+      case 'inválido': return 'bg-rose-600'
+      case 'já utilizado': return 'bg-amber-500'
+      case 'evento errado': return 'bg-indigo-600'
+      default: return 'bg-neutral-800'
     }
   }
+
+  const getStatusIcon = () => {
+    switch (status) {
+      case 'válido': return '✓'
+      case 'inválido': return '✕'
+      case 'já utilizado': return '⏳'
+      case 'evento errado': return '⚠'
+      default: return ''
+    }
+  }
+
+  const isFinalState =
+    status !== 'idle' && status !== 'loading'
 
   return (
     <main className="min-h-screen bg-paper px-4 py-10">
@@ -52,18 +64,18 @@ export default function Portaria() {
           <Link to="/" className="text-sm font-medium text-neutral-500 hover:text-neutral-900">
             ← Voltar
           </Link>
-          <h1 className="font-display text-3xl font-medium text-neutral-900">
+          <h1 className="font-display text-3xl font-semibold text-neutral-900">
             Portaria Virtual
           </h1>
         </header>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-black/10 flex flex-col gap-6">
-          
+
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">
               Validar ingressos para qual Evento ID?
             </label>
-            <input 
+            <input
               type="number"
               value={eventId}
               onChange={(e) => setEventId(e.target.value)}
@@ -72,7 +84,7 @@ export default function Portaria() {
           </div>
 
           <div className="rounded-xl overflow-hidden border border-black/10 bg-black aspect-square max-h-96 relative">
-            <Scanner 
+            <Scanner
               onScan={(detected) => {
                 if (detected && detected.length > 0) {
                   handleValidate(detected[0].rawValue)
@@ -80,48 +92,56 @@ export default function Portaria() {
               }}
               onError={(error) => console.error(error)}
               formats={['qr_code']}
-              components={{ audio: false, finder: false }}
+              components={{ finder: false }}
             />
           </div>
 
           <div className="flex gap-2">
-            <input 
+            <input
               type="text"
               placeholder="Ou digite o token (UUID.HMAC)..."
               value={manualToken}
               onChange={(e) => setManualToken(e.target.value)}
               className="flex-1 rounded-lg border-neutral-300 shadow-sm focus:border-accent focus:ring-accent sm:text-sm p-2 border font-mono text-xs"
             />
-            <button 
+            <button
               onClick={() => handleValidate(manualToken)}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800">
               Validar
             </button>
           </div>
 
-          {status !== 'idle' && (
-            <div className={`mt-2 p-4 rounded-xl border-2 text-center transition-all ${getStatusColor()}`}>
-              <p className="font-display font-medium text-lg uppercase tracking-wider mb-1">
-                {status}
-              </p>
-              <p className="text-sm font-medium opacity-90">
-                {message}
-              </p>
-              {status !== 'loading' && (
-                <button 
-                  onClick={() => {
-                    setStatus('idle')
-                    setLastScanned('')
-                  }}
-                  className="mt-3 text-xs underline opacity-70 hover:opacity-100">
-                  Limpar e ler próximo
-                </button>
-              )}
-            </div>
+          {status === 'loading' && (
+            <p className="text-center text-sm font-medium text-neutral-500 animate-pulse">
+              {message}
+            </p>
           )}
 
         </div>
       </div>
+
+      {isFinalState && (
+        <div
+          className={`fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 p-8 text-center text-white animate-state-pop ${getStatusPanelClasses()}`}
+        >
+          <span className="text-8xl leading-none">{getStatusIcon()}</span>
+          <p className="font-display text-5xl font-bold uppercase tracking-wide sm:text-6xl">
+            {status}
+          </p>
+          <p className="max-w-md text-lg font-medium opacity-90">
+            {message}
+          </p>
+          <button
+            onClick={() => {
+              setStatus('idle')
+              setLastScanned('')
+            }}
+            className="mt-4 rounded-full bg-white/20 px-6 py-3 text-sm font-semibold uppercase tracking-wide backdrop-blur-md transition hover:bg-white/30"
+          >
+            Limpar e ler próximo
+          </button>
+        </div>
+      )}
     </main>
   )
 }

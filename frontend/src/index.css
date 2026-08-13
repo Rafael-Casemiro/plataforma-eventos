@@ -1,9 +1,13 @@
 @import "tailwindcss";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
 
 @theme {
-  --font-display: "Space Grotesk", sans-serif;
-  --color-accent: #d8432e;
-  --color-paper: #fdfaf5;
+  --font-display: "Outfit", sans-serif;
+  --color-accent: #059669;
+  --color-paper: #fafafa;
 }
 
 @layer base {
@@ -14,4 +18,19 @@
   button:disabled {
     cursor: not-allowed;
   }
+}
+
+@keyframes state-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-state-pop {
+  animation: state-pop 0.25s ease-out;
 }
