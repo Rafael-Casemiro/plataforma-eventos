@@ -40,6 +40,17 @@ def customer(db):
 
 
 @pytest.fixture
+def portaria(db):
+    return User.objects.create_user(
+        email="portaria_res@example.com",
+        first_name="Diego",
+        last_name="Alves",
+        password="senha123",
+        role=User.Role.PORTARIA,
+    )
+
+
+@pytest.fixture
 def event(db, organizer):
     return Event.objects.create(
         title="Duna: Parte Dois",
@@ -233,3 +244,108 @@ class TestShareTicket:
             '/api/v1/reservations/share/00000000-0000-0000-0000-000000000000/'
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.fixture
+def paid_ticket(customer, event):
+    from reservations.views import confirm_payment_and_generate_ticket
+
+    reserva = Reservation.objects.create(
+        customer=customer, event=event, quantity=1,
+        status=Reservation.Status.PENDENTE,
+        expires_at=timezone.now() + timedelta(minutes=15),
+    )
+    confirm_payment_and_generate_ticket(reserva.id)
+    return Ticket.objects.get(reservation=reserva)
+
+
+@pytest.mark.django_db
+class TestValidateTicket:
+    def test_valid_qr_token_liberates_entry(self, api_client, portaria, paid_ticket, event):
+        api_client.force_authenticate(user=portaria)
+
+        response = api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': f'{paid_ticket.code}.{paid_ticket.signature}',
+            'event_id': event.id,
+        })
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['status'] == 'válido'
+
+    def test_valid_short_code_is_case_insensitive(self, api_client, portaria, paid_ticket, event):
+        api_client.force_authenticate(user=portaria)
+
+        response = api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': paid_ticket.short_code.lower(),
+            'event_id': event.id,
+        })
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['status'] == 'válido'
+
+    def test_already_used_returns_409(self, api_client, portaria, paid_ticket, event):
+        api_client.force_authenticate(user=portaria)
+        payload = {'token': paid_ticket.short_code, 'event_id': event.id}
+
+        api_client.post('/api/v1/reservations/validate-ticket/', payload)
+        response = api_client.post('/api/v1/reservations/validate-ticket/', payload)
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.data['status'] == 'já utilizado'
+
+    def test_wrong_event_returns_400(self, api_client, portaria, paid_ticket, organizer):
+        outro_evento = Event.objects.create(
+            title="Outro evento", date=timezone.now() + timedelta(days=1),
+            location="Y", capacity=10, price="10.00", organizer=organizer,
+            external_ref=9999, is_published=True,
+        )
+        api_client.force_authenticate(user=portaria)
+
+        response = api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': paid_ticket.short_code,
+            'event_id': outro_evento.id,
+        })
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data['status'] == 'evento errado'
+
+    def test_unknown_code_returns_404(self, api_client, portaria, event):
+        api_client.force_authenticate(user=portaria)
+
+        response = api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': 'ZZZZZZZZZZ',
+            'event_id': event.id,
+        })
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_cliente_cannot_validate(self, api_client, customer, paid_ticket, event):
+        api_client.force_authenticate(user=customer)
+
+        response = api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': paid_ticket.short_code,
+            'event_id': event.id,
+        })
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+class TestCheckInProgress:
+    def test_counts_validated_and_total_tickets(self, api_client, portaria, paid_ticket, event):
+        api_client.force_authenticate(user=portaria)
+
+        response = api_client.get(f'/api/v1/reservations/check-in/{event.id}/')
+        assert response.data == {'validados': 0, 'total': 1}
+
+        api_client.post('/api/v1/reservations/validate-ticket/', {
+            'token': paid_ticket.short_code, 'event_id': event.id,
+        })
+
+        response = api_client.get(f'/api/v1/reservations/check-in/{event.id}/')
+        assert response.data == {'validados': 1, 'total': 1}
+
+    def test_cliente_cannot_access(self, api_client, customer, event):
+        api_client.force_authenticate(user=customer)
+        response = api_client.get(f'/api/v1/reservations/check-in/{event.id}/')
+        assert response.status_code == status.HTTP_403_FORBIDDEN

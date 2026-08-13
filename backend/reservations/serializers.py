@@ -7,7 +7,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
      class Meta:
           model = Ticket
-          fields = ['id', 'code', 'used_at', 'share_token', 'qr_token']
+          fields = ['id', 'code', 'used_at', 'share_token', 'qr_token', 'short_code']
 
      def get_qr_token(self, obj):
           return f"{obj.code}.{obj.signature}"

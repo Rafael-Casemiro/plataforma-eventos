@@ -22,6 +22,7 @@ class Ticket(models.Model):
      reservation = models.OneToOneField(to=Reservation, on_delete=models.CASCADE, related_name='ticket')
      code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
      signature = models.CharField(max_length=128, blank=True)
+     short_code = models.CharField(max_length=10, unique=True, null=True, blank=True)
      used_at = models.DateTimeField(blank=True, null=True)
      share_token = models.UUIDField(default=uuid.uuid4, unique=True)
 

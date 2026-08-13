@@ -114,8 +114,19 @@ def cancel_reservation(request, pk):
 
 import hmac
 import hashlib
+import secrets
 from django.conf import settings
 from .models import Payment, Ticket
+
+SHORT_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+SHORT_CODE_LENGTH = 10
+
+
+def _gerar_short_code():
+     while True:
+          codigo = ''.join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(SHORT_CODE_LENGTH))
+          if not Ticket.objects.filter(short_code=codigo).exists():
+               return codigo
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -197,9 +208,10 @@ def confirm_payment_and_generate_ticket(reserva_id):
           payload = f"{ticket.code}:{reserva.event_id}".encode('utf-8')
           key = settings.SECRET_KEY.encode('utf-8')
           signature = hmac.new(key, payload, hashlib.sha256).hexdigest()
-          
+
           ticket.signature = signature
-          ticket.save(update_fields=['signature'])
+          ticket.short_code = _gerar_short_code()
+          ticket.save(update_fields=['signature', 'short_code'])
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -229,41 +241,57 @@ def stripe_webhook(request):
 @api_view(['POST'])
 @permission_classes([IsPortaria])
 def validate_ticket(request):
-     token = request.data.get('token', '')
+     token = request.data.get('token', '').strip()
      event_id = request.data.get('event_id')
-     
+
      if not token or not event_id:
           return Response({"detail": "Token e event_id são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
-          
-     parts = token.split('.')
-     if len(parts) != 2:
-          return Response({"status": "inválido", "detail": "Formato de token inválido."}, status=status.HTTP_400_BAD_REQUEST)
-          
-     ticket_code, signature = parts
-     
+
      with transaction.atomic():
-          try:
-               ticket = Ticket.objects.select_for_update().get(code=ticket_code)
-          except Ticket.DoesNotExist:
-               return Response({"status": "inválido", "detail": "Ingresso não encontrado."}, status=status.HTTP_404_NOT_FOUND)
-               
+          if '.' in token:
+               parts = token.split('.')
+               if len(parts) != 2:
+                    return Response({"status": "inválido", "detail": "Formato de token inválido."}, status=status.HTTP_400_BAD_REQUEST)
+
+               ticket_code, signature = parts
+
+               try:
+                    ticket = Ticket.objects.select_for_update().get(code=ticket_code)
+               except Ticket.DoesNotExist:
+                    return Response({"status": "inválido", "detail": "Ingresso não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+               payload = f"{ticket_code}:{ticket.reservation.event_id}".encode('utf-8')
+               key = settings.SECRET_KEY.encode('utf-8')
+               expected_signature = hmac.new(key, payload, hashlib.sha256).hexdigest()
+
+               if not hmac.compare_digest(signature, expected_signature):
+                    return Response({"status": "inválido", "detail": "Assinatura digital não confere."}, status=status.HTTP_400_BAD_REQUEST)
+          else:
+               try:
+                    ticket = Ticket.objects.select_for_update().get(short_code=token.upper())
+               except Ticket.DoesNotExist:
+                    return Response({"status": "inválido", "detail": "Ingresso não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
           if str(ticket.reservation.event_id) != str(event_id):
                return Response({"status": "evento errado", "detail": "Este ingresso pertence a outro evento."}, status=status.HTTP_400_BAD_REQUEST)
-               
-          payload = f"{ticket_code}:{ticket.reservation.event_id}".encode('utf-8')
-          key = settings.SECRET_KEY.encode('utf-8')
-          expected_signature = hmac.new(key, payload, hashlib.sha256).hexdigest()
-          
-          if not hmac.compare_digest(signature, expected_signature):
-               return Response({"status": "inválido", "detail": "Assinatura digital não confere."}, status=status.HTTP_400_BAD_REQUEST)
-               
+
           if ticket.used_at is not None:
-               return Response({"status": "já utilizado", "detail": f"Ingresso já utilizado."}, status=status.HTTP_409_CONFLICT)
-               
+               return Response({"status": "já utilizado", "detail": "Ingresso já utilizado."}, status=status.HTTP_409_CONFLICT)
+
           ticket.used_at = timezone.now()
           ticket.save(update_fields=['used_at'])
 
      return Response({"status": "válido", "detail": "Entrada liberada!"}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsPortaria])
+def check_in_progress(request, event_id):
+     tickets = Ticket.objects.filter(reservation__event_id=event_id)
+     total = tickets.count()
+     validados = tickets.filter(used_at__isnull=False).count()
+
+     return Response({"validados": validados, "total": total}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
