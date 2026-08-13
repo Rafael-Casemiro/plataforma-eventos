@@ -1,3 +1,12 @@
+export interface TmdbMovie {
+  id: number
+  titulo: string
+  sinopse: string
+  data_lancamento: string
+  nota: number
+  poster_path: string
+}
+
 export interface Event {
   id: number
   title: string
