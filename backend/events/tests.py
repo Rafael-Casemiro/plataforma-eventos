@@ -219,6 +219,18 @@ class TestPublicEventListing:
         titles = [evento["title"] for evento in response.data["eventos"]]
         assert titles == ["Caro"]
 
+    def test_invalid_price_min_returns_400(self, api_client):
+        response = api_client.get(EVENTS_LIST_URL, {"price_min": "abc"})
+        assert response.status_code == 400
+
+    def test_invalid_price_max_returns_400(self, api_client):
+        response = api_client.get(EVENTS_LIST_URL, {"price_max": "abc"})
+        assert response.status_code == 400
+
+    def test_invalid_date_returns_400(self, api_client):
+        response = api_client.get(EVENTS_LIST_URL, {"date": "nao-e-uma-data"})
+        assert response.status_code == 400
+
 
 @pytest.mark.django_db
 class TestOrganizerEventListing:
@@ -348,5 +360,41 @@ class TestUpdateEventView:
             {"title": "X"},
             format="json",
         )
+
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestDeleteEventView:
+    def test_owner_can_delete_event(self, api_client, organizer, published_event):
+        _login(api_client, organizer)
+
+        response = api_client.delete(f"/api/v1/events/{published_event.pk}/")
+
+        assert response.status_code == 204
+        assert not Event.objects.filter(pk=published_event.pk).exists()
+
+    def test_non_owner_organizador_cannot_delete(
+        self, api_client, another_organizer, published_event
+    ):
+        _login(api_client, another_organizer)
+
+        response = api_client.delete(f"/api/v1/events/{published_event.pk}/")
+
+        assert response.status_code == 403
+        assert Event.objects.filter(pk=published_event.pk).exists()
+
+    def test_cliente_cannot_delete(self, api_client, cliente, published_event):
+        _login(api_client, cliente)
+
+        response = api_client.delete(f"/api/v1/events/{published_event.pk}/")
+
+        assert response.status_code == 403
+        assert Event.objects.filter(pk=published_event.pk).exists()
+
+    def test_deleting_nonexistent_event_returns_404(self, api_client, organizer):
+        _login(api_client, organizer)
+
+        response = api_client.delete("/api/v1/events/999999/")
 
         assert response.status_code == 404

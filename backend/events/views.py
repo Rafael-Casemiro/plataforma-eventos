@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from datetime import date as date_cls
+from decimal import Decimal, InvalidOperation
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -32,14 +34,26 @@ def get_eventos(request):
 
      date = request.query_params.get('date')
      if date:
+          try:
+               date_cls.fromisoformat(date)
+          except ValueError:
+               return Response({"detail": "date inválido."}, status=400)
           eventos = eventos.filter(date__date=date)
 
      price_min = request.query_params.get('price_min')
      if price_min:
+          try:
+               price_min = Decimal(price_min)
+          except InvalidOperation:
+               return Response({"detail": "price_min inválido."}, status=400)
           eventos = eventos.filter(price__gte=price_min)
 
      price_max = request.query_params.get('price_max')
      if price_max:
+          try:
+               price_max = Decimal(price_max)
+          except InvalidOperation:
+               return Response({"detail": "price_max inválido"}, status=400)
           eventos = eventos.filter(price__lte=price_max)
 
      
@@ -65,13 +79,17 @@ def criar_evento(request):
      response = Response(EventSerializer(evento).data, status=status.HTTP_201_CREATED)
      return response
 
-@api_view(['PUT', 'PATCH'])
+@api_view(['PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsOrganizador])
 def update_evento(request, pk):
      evento = get_object_or_404(Event, pk=pk)
 
      if evento.organizer != request.user:
           return Response({"detail": "Você não tem permissão para editar este evento."}, status=status.HTTP_403_FORBIDDEN)
+
+     if request.method == 'DELETE':
+          evento.delete()
+          return Response(status=status.HTTP_204_NO_CONTENT)
 
      serializer = EventWriteSerializer(evento, data=request.data, partial=request.method == 'PATCH')
      serializer.is_valid(raise_exception=True)
