@@ -11,6 +11,7 @@ Plataforma web para publicação de eventos, reserva/compra de ingressos com con
 - [Documentação da API (Swagger)](#documentação-da-api-swagger)
 - [Como rodar localmente](#como-rodar-localmente)
 - [Credenciais de teste (seed)](#credenciais-de-teste-seed)
+- [Como testar o pagamento (Stripe)](#como-testar-o-pagamento-stripe)
 - [Testes](#testes)
 - [Decisões técnicas](#decisões-técnicas)
 - [Deploy](#deploy)
@@ -23,7 +24,7 @@ Três papéis de usuário (`role`), cada um com sua própria visão:
 
 | Papel | O que faz |
 |---|---|
-| **Cliente** | Navega o catálogo público de eventos (paginado, com busca/filtros), reserva N ingressos por evento, paga (fluxo de pagamento simulado, com integração real de Stripe Checkout implementada no código mas não validada em produção), recebe um QR Code assinado por ingresso, acompanha "Minhas Reservas" com contagem regressiva de expiração, compartilha um ingresso via link público. |
+| **Cliente** | Navega o catálogo público de eventos (paginado, com busca/filtros), reserva N ingressos por evento, paga via Stripe Checkout real (modo de teste) ou simula recusa, recebe um QR Code assinado por ingresso, acompanha "Minhas Reservas" com contagem regressiva de expiração, compartilha um ingresso via link público. |
 | **Organizador** | Cria e edita seus próprios eventos (título, descrição, data, local, capacidade, preço), usando dados de filmes em cartaz da TMDb como base de conteúdo. |
 | **Portaria** | Escaneia (câmera) ou digita um código curto para validar ingressos na entrada do evento, com contador de check-in em tempo real. |
 
@@ -86,6 +87,28 @@ Todas as senhas: `senha123`
 | Portaria | `portaria1.seed@example.com` | — |
 | Admin (Django admin) | criar com `docker compose exec web python manage.py createsuperuser` | Não faz parte do seed |
 
+## Como testar o pagamento (Stripe)
+
+Em "Minhas Reservas", uma reserva pendente mostra dois botões:
+
+- **Simular Recusa** — resolve na hora (`simulate=fail`), sem depender da Stripe. Bom pra testar o caminho de recusa.
+- **Pagar com Stripe** — cria uma sessão real de [Stripe Checkout](https://stripe.com/docs/payments/checkout) em modo de teste. É o único caminho na UI que gera um ingresso pago de verdade (não existe um botão de "simular sucesso" sem passar pela Stripe — esse caminho só é acessível chamando a API diretamente, ver abaixo).
+
+Pra completar o checkout: cartão `4242 4242 4242 4242`, qualquer data de validade futura, qualquer CVC.
+
+**Pré-requisito:** `STRIPE_SECRET_KEY` configurada (chave de teste, `sk_test_...`, gratuita — crie uma conta em [dashboard.stripe.com](https://dashboard.stripe.com)). Sem isso, o botão "Pagar com Stripe" retorna erro.
+
+**Pra o ingresso ser gerado de verdade** (reserva virar `paga`), o webhook precisa estar configurado — é ele que confirma o pagamento de forma assíncrona:
+1. No dashboard da Stripe: `Developers/Webhooks > Add endpoint` (ou "Criar destino de evento"), URL = `<seu-backend>/api/v1/reservations/webhook/`, evento = `checkout.session.completed`.
+2. Copie a **Signing secret** (`whsec_...`) gerada e configure como `STRIPE_WEBHOOK_SECRET`.
+3. **Se recriar o destino em algum momento, a Signing secret muda** — é preciso atualizar `STRIPE_WEBHOOK_SECRET` de novo, senão o webhook chega mas é rejeitado com 400 (assinatura inválida).
+
+**Testar sem passar pela UI/checkout real:** a [Stripe CLI](https://docs.stripe.com/stripe-cli) permite dois atalhos úteis:
+- `stripe login` (autentique no mesmo ambiente/sandbox das chaves configuradas) + `stripe trigger checkout.session.completed` — dispara um evento sintético direto pro webhook, sem precisar completar um checkout de verdade. Bom pra testar só a entrega/assinatura do webhook.
+- Localmente, `stripe listen --forward-to localhost:8000/api/v1/reservations/webhook/` encaminha eventos reais pro seu ambiente de dev e imprime uma Signing secret temporária pra usar em `STRIPE_WEBHOOK_SECRET`.
+
+Alternativa sem Stripe nenhuma: `simulate=success` confirma o pagamento e gera o ingresso sincronamente, mas só é alcançável via chamada direta à API (não tem botão na UI) — por exemplo pelo Swagger (`/api/docs/`), em `POST /reservations/{id}/pay/` com corpo `{"simulate": "success"}`.
+
 ## Testes
 
 ```bash
@@ -119,7 +142,7 @@ Registro do "porquê", não só do "o quê" — inclui o que foi cogitado e desc
 ## Limitações conhecidas
 
 - **Cold start no Render (plano free):** o serviço web hiberna após um período sem tráfego; a primeira requisição depois disso pode levar 30–60s para responder. Requisições seguintes voltam ao normal.
-- **Pagamento é simulado.** O fluxo de pagamento usado (inclusive no ambiente publicado) é via parâmetro `simulate=success|fail|stripe`, sem depender de credenciais externas. O código tem uma integração real com `stripe.checkout.Session` e verificação de assinatura de webhook, mas ela não foi validada rodando em produção (exigiria `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` reais e o webhook registrado manualmente no dashboard da Stripe).
+- **Pagamento via Stripe exige configuração própria** (`STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` + webhook registrado no dashboard) — ver [Como testar o pagamento (Stripe)](#como-testar-o-pagamento-stripe). Sem isso, só o caminho "Simular Recusa" funciona na UI.
 - **Sem verificação de e-mail no cadastro** — o projeto já tem login funcional via usuários de seed, e configurar um provedor de e-mail transacional (ex.: Brevo, já que o Render bloqueia SMTP na porta 587 nos planos gratuitos) não agregava ao que está sendo avaliado aqui. Cadastro cria a conta e autentica na hora.
 - **Sem seleção de assento** — decisão deliberada, ver seção de decisões acima.
 
@@ -130,9 +153,3 @@ Ferramenta: **Claude Code** (Anthropic), usada de forma deliberadamente desigual
 - **Backend:** escrito por mim. IA usada como par de design (discussão de abordagens antes de implementar) e revisão de código — encontrar e confirmar bugs reais, sempre validados empiricamente (`docker compose exec`, `pytest`, `curl`) antes de aceitar qualquer diagnóstico. Assim foram encontrados e corrigidos, por exemplo: falta de checagem de expiração na confirmação de pagamento (webhook tardio/duplicado furando a garantia de não-overselling), permissão errada no endpoint de validação de ingresso, e um vazamento de informação sobre eventos não publicados.
 - **Frontend:** misto. Eu implementei partes da interface diretamente (por exemplo a tela de login e o sistema visual — paleta de cores, tipografia); a IA implementou a maior parte das páginas, componentes, integrações com a API e correções de UX sobre essa base, sempre com decisões validadas comigo antes de codar.
 - **Processo:** cada funcionalidade não trivial passou por um ciclo spec → aprovação → implementação. As specs de cada sprint estão versionadas em [`docs/superpowers/specs/`](docs/superpowers/specs/) e documentam alternativas consideradas e descartadas, não só a decisão final.
-
-
-
-
-
-
