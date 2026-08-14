@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { Navbar } from '../components/Navbar'
 import { Scanner } from '@yudiel/react-qr-scanner'
-import type { Event } from '../api/types'
+import type { Event, PaginatedResponse } from '../api/types'
 
 interface CheckInProgress {
   validados: number
@@ -22,10 +22,12 @@ export default function Portaria() {
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        const response = await api.get<{ eventos: Event[] }>('/events/')
-        setEventos(response.data.eventos)
-        if (response.data.eventos.length > 0) {
-          setEventId(String(response.data.eventos[0].id))
+        const response = await api.get<PaginatedResponse<Event>>('/events/', {
+          params: { page_size: 50 },
+        })
+        setEventos(response.data.results)
+        if (response.data.results.length > 0) {
+          setEventId(String(response.data.results[0].id))
         }
       } catch {
         setEventos([])
