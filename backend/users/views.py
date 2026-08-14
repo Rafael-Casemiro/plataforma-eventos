@@ -50,11 +50,11 @@ def login(request):
 
      response.set_cookie(
           'access', str(refresh.access_token),
-          httponly=True, secure=not settings.DEBUG, samesite='Lax',
+          httponly=True, secure=not settings.DEBUG, samesite=settings.COOKIE_SAMESITE,
      )
      response.set_cookie(
           'refresh', str(refresh),
-          httponly=True, secure=not settings.DEBUG, samesite='Lax',
+          httponly=True, secure=not settings.DEBUG, samesite=settings.COOKIE_SAMESITE,
      )
 
 
@@ -92,7 +92,7 @@ def refresh(request):
                str(access_token),
                httponly=True,
                secure=not settings.DEBUG,
-               samesite='Lax',
+               samesite=settings.COOKIE_SAMESITE,
           )
 
           return response
@@ -115,12 +115,12 @@ def logout(request):
 
      response.delete_cookie(
           'access',
-          samesite='Lax'
+          samesite=settings.COOKIE_SAMESITE
      )
 
      response.delete_cookie(
           'refresh',
-          samesite='Lax'
+          samesite=settings.COOKIE_SAMESITE
      )
 
      return response
