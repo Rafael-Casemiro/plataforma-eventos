@@ -16,6 +16,25 @@ export const api: AxiosInstance = axios.create({
      withXSRFToken: true
 });
 
+// Em producao, frontend e backend ficam em dominios diferentes: o JS do frontend
+// nao consegue ler o cookie csrftoken (pertence ao dominio do backend), entao o
+// mecanismo automatico xsrfCookieName do axios nunca funciona ali. Guardamos o
+// token em memoria (obtido explicitamente no corpo de /auth/me/) e o anexamos
+// manualmente. Em dev (mesmo host, portas diferentes) o xsrfCookieName acima
+// já resolve sozinho, mas isso aqui funciona nos dois casos.
+let csrfToken: string | null = null;
+
+export function setCsrfToken(token: string | null): void {
+     csrfToken = token;
+}
+
+api.interceptors.request.use((config) => {
+     if (csrfToken) {
+          config.headers.set('X-CSRFToken', csrfToken);
+     }
+     return config;
+});
+
 let isRefreshing = false;
 let failedQueue: Array<{
      resolve: (value?: unknown) => void;

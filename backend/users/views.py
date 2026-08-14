@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.conf import settings
+from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 
@@ -141,7 +142,11 @@ def me(request):
 
      response = Response(
           {
-               "user": UserSerializer(request.user).data
+               "user": UserSerializer(request.user).data,
+               # Em producao (dominios diferentes), o JS do frontend nao consegue
+               # ler o cookie csrftoken (pertence ao dominio do backend) — por
+               # isso o token tambem vai explicitamente no corpo da resposta.
+               "csrf_token": get_token(request),
           }
      )
 

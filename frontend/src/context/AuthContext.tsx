@@ -6,7 +6,7 @@ import {
      type ReactNode,
 } from 'react';
 
-import { api } from '../api/client';
+import { api, setCsrfToken } from '../api/client';
 
 interface User {
      id: number;
@@ -44,8 +44,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
      const loadUser = async () => {
           try {
-               const response = await api.get<{ user: User }>('/auth/me/');
+               const response = await api.get<{ user: User; csrf_token: string }>('/auth/me/');
                setUser(response.data.user);
+               setCsrfToken(response.data.csrf_token);
           } catch {
                setUser(null);
           } finally {
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                await api.post('/auth/logout/');
           } finally {
                setUser(null);
+               setCsrfToken(null);
           }
      };
 
