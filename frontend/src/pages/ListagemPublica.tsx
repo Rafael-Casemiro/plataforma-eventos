@@ -3,9 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { Navbar } from '../components/Navbar'
-import type { Event } from '../api/types'
+import { Pagination } from '../components/Pagination'
+import type { Event, PaginatedResponse } from '../api/types'
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342'
+const PAGE_SIZE = 12
 
 export default function ListagemPublica() {
   const [eventos, setEventos] = useState<Event[]>([])
@@ -17,22 +19,30 @@ export default function ListagemPublica() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reservationError, setReservationError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<number, number>>({})
+  const [page, setPage] = useState(1)
+  const [count, setCount] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrevious, setHasPrevious] = useState(false)
 
   const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
-  const fetchEventos = async (filters: Record<string, string>) => {
+  const fetchEventos = async (filters: Record<string, string>, targetPage: number) => {
     setIsLoading(true)
     setLoadError(null)
     try {
       const params = Object.fromEntries(
         Object.entries(filters).filter(([, value]) => value !== ''),
       )
-      const response = await api.get<{ eventos: Event[] }>('/events/', {
-        params,
+      const response = await api.get<PaginatedResponse<Event>>('/events/', {
+        params: { ...params, page: targetPage },
       })
-      setEventos(response.data.eventos)
+      setEventos(response.data.results)
+      setCount(response.data.count)
+      setHasNext(response.data.next !== null)
+      setHasPrevious(response.data.previous !== null)
+      setPage(targetPage)
     } catch {
       setEventos([])
       setLoadError('Não foi possível carregar os eventos.')
@@ -42,17 +52,23 @@ export default function ListagemPublica() {
   }
 
   useEffect(() => {
-    fetchEventos({})
+    fetchEventos({}, 1)
   }, [])
+
+  const currentFilters = () => ({
+    search,
+    date,
+    price_min: priceMin,
+    price_max: priceMax,
+  })
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault()
-    fetchEventos({
-      search,
-      date,
-      price_min: priceMin,
-      price_max: priceMax,
-    })
+    fetchEventos(currentFilters(), 1)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    fetchEventos(currentFilters(), newPage)
   }
 
   const getQuantity = (eventId: number) => quantities[eventId] ?? 1
@@ -223,6 +239,17 @@ export default function ListagemPublica() {
               </li>
             ))}
           </ul>
+        )}
+
+        {!isLoading && !loadError && (
+          <Pagination
+            page={page}
+            count={count}
+            pageSize={PAGE_SIZE}
+            hasNext={hasNext}
+            hasPrevious={hasPrevious}
+            onPageChange={handlePageChange}
+          />
         )}
         </div>
       </main>

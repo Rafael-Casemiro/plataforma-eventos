@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { Navbar } from '../components/Navbar'
-import type { Reservation } from '../api/types'
+import { Pagination } from '../components/Pagination'
+import type { PaginatedResponse, Reservation } from '../api/types'
 import { QRCodeSVG } from 'qrcode.react'
+
+const PAGE_SIZE = 10
 
 function formatCountdown(expiresAt: string, now: number): string {
   const remainingMs = new Date(expiresAt).getTime() - now
@@ -20,14 +23,24 @@ export default function MinhasReservas() {
   const [now, setNow] = useState(() => Date.now())
   const [paymentError, setPaymentError] = useState<{ id: number; message: string } | null>(null)
   const [copiedLabel, setCopiedLabel] = useState<{ id: number; type: 'token' | 'link' } | null>(null)
+  const [page, setPage] = useState(1)
+  const [count, setCount] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrevious, setHasPrevious] = useState(false)
   const refetchedIds = useRef(new Set<number>())
 
-  const fetchReservas = useCallback(async () => {
+  const fetchReservas = useCallback(async (targetPage: number) => {
+    setIsLoading(true)
     try {
-      const response = await api.get<{ reservas: Reservation[] }>(
+      const response = await api.get<PaginatedResponse<Reservation>>(
         '/reservations/mine/',
+        { params: { page: targetPage } },
       )
-      setReservas(response.data.reservas)
+      setReservas(response.data.results)
+      setCount(response.data.count)
+      setHasNext(response.data.next !== null)
+      setHasPrevious(response.data.previous !== null)
+      setPage(targetPage)
     } catch {
       setError('Não foi possível carregar as reservas.')
     } finally {
@@ -36,7 +49,7 @@ export default function MinhasReservas() {
   }, [])
 
   useEffect(() => {
-    fetchReservas()
+    fetchReservas(1)
   }, [fetchReservas])
 
   useEffect(() => {
@@ -53,9 +66,13 @@ export default function MinhasReservas() {
     )
     if (recemExpiradas.length > 0) {
       recemExpiradas.forEach((reserva) => refetchedIds.current.add(reserva.id))
-      fetchReservas()
+      fetchReservas(page)
     }
-  }, [now, reservas, fetchReservas])
+  }, [now, reservas, fetchReservas, page])
+
+  const handlePageChange = (newPage: number) => {
+    fetchReservas(newPage)
+  }
 
   const handlePayment = async (id: number, simulate: 'success' | 'fail' | 'stripe') => {
     setPaymentError(null)
@@ -236,6 +253,17 @@ export default function MinhasReservas() {
               )
             })}
           </ul>
+        )}
+
+        {!isLoading && !error && (
+          <Pagination
+            page={page}
+            count={count}
+            pageSize={PAGE_SIZE}
+            hasNext={hasNext}
+            hasPrevious={hasPrevious}
+            onPageChange={handlePageChange}
+          />
         )}
         </div>
       </main>
