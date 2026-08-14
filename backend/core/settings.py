@@ -160,6 +160,11 @@ if not DEBUG:
 # em requisicoes cross-site. Em dev (mesmo host:porta local) Lax basta.
 COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
 
+# O cookie csrftoken do proprio Django tambem precisa dessa troca — sem isso
+# ele fica em SameSite=Lax (padrao) e o navegador nunca o grava/envia entre
+# dominios diferentes, quebrando toda requisicao mutavel (POST/PUT/PATCH/DELETE).
+CSRF_COOKIE_SAMESITE = COOKIE_SAMESITE
+
 
 
 
