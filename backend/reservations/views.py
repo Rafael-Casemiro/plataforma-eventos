@@ -4,12 +4,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework import serializers
 from django.conf import settings
 from django.db import transaction
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 from .serializers import ReservationSerializer, ReservationWriteSerializer, SharedTicketSerializer
 from .models import Reservation
@@ -23,6 +25,11 @@ class ReservationPagination(PageNumberPagination):
      max_page_size = 50
 
 
+@extend_schema(
+     request=ReservationWriteSerializer,
+     responses={201: ReservationSerializer, 409: None},
+     description='Cria uma reserva pendente (expira em 15 min). Falha com 409 se não houver vagas suficientes no momento.',
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def reservation(request):
@@ -74,6 +81,10 @@ def reservation(request):
      return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+     responses={200: ReservationSerializer(many=True)},
+     description='Reservas do usuário autenticado, paginadas. Resposta real é paginada (`{count, next, previous, results}`).',
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_my_reservations(request):
@@ -97,6 +108,7 @@ def list_my_reservations(request):
      return paginator.get_paginated_response(serializer.data)
 
 
+@extend_schema(request=None, responses={200: ReservationSerializer})
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cancel_reservation(request, pk):
@@ -139,6 +151,17 @@ def _gerar_short_code():
           if not Ticket.objects.filter(short_code=codigo).exists():
                return codigo
 
+@extend_schema(
+     request=inline_serializer('PayReservationRequest', {
+          'simulate': serializers.ChoiceField(choices=['success', 'fail', 'stripe'], required=False, default='success'),
+     }),
+     responses={200: ReservationSerializer},
+     description=(
+          'Paga uma reserva pendente. `simulate=success` (padrão) e `simulate=fail` resolvem na hora sem '
+          'depender de credenciais externas. `simulate=stripe` cria uma sessão real de Stripe Checkout e '
+          'responde `{"checkout_url": "..."}` em vez do objeto de reserva.'
+     ),
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def pay_reservation(request, pk):
@@ -226,6 +249,11 @@ def confirm_payment_and_generate_ticket(reserva_id):
                ticket.short_code = _gerar_short_code()
                ticket.save(update_fields=['signature', 'short_code'])
 
+@extend_schema(
+     request=None,
+     responses={200: None, 400: None},
+     description='Uso exclusivo do Stripe (verificação de assinatura via `Stripe-Signature`). Não é chamado pelo frontend.',
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def stripe_webhook(request):
@@ -251,6 +279,14 @@ def stripe_webhook(request):
      return Response(status=status.HTTP_200_OK)
 
 
+@extend_schema(
+     request=inline_serializer('ValidateTicketRequest', {
+          'token': serializers.CharField(help_text='"code.signature" do QR, ou o short_code de 10 caracteres.'),
+          'event_id': serializers.IntegerField(),
+     }),
+     responses={200: None, 400: None, 404: None, 409: None},
+     description='Valida e consome um ingresso na portaria. `status` na resposta: "válido", "inválido", "evento errado" ou "já utilizado".',
+)
 @api_view(['POST'])
 @permission_classes([IsPortaria])
 def validate_ticket(request):
@@ -297,6 +333,13 @@ def validate_ticket(request):
      return Response({"status": "válido", "detail": "Entrada liberada!"}, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+     responses={200: inline_serializer('CheckInProgress', {
+          'validados': serializers.IntegerField(),
+          'total': serializers.IntegerField(),
+     })},
+     description='Contagem de ingressos já validados vs. total emitidos para o evento.',
+)
 @api_view(['GET'])
 @permission_classes([IsPortaria])
 def check_in_progress(request, event_id):
@@ -307,6 +350,7 @@ def check_in_progress(request, event_id):
      return Response({"validados": validados, "total": total}, status=status.HTTP_200_OK)
 
 
+@extend_schema(responses={200: SharedTicketSerializer, 404: None})
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def share_ticket(request, share_token):

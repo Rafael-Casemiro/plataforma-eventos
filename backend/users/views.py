@@ -6,9 +6,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.conf import settings
 from django.views.decorators.csrf import ensure_csrf_cookie
+from drf_spectacular.utils import extend_schema
 
 from .serializers import UserSerializer, UserCreateSerializer, LoginSerializer
 
+@extend_schema(request=UserCreateSerializer, responses={201: UserSerializer})
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
@@ -30,6 +32,7 @@ def register(request):
           status=status.HTTP_201_CREATED
      )
 
+@extend_schema(request=LoginSerializer, responses={200: UserSerializer})
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
@@ -62,6 +65,11 @@ def login(request):
 
 
 
+@extend_schema(
+     request=None,
+     responses={200: None, 401: None},
+     description='Renova o cookie de access token a partir do cookie de refresh token.',
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh(request):
@@ -103,6 +111,7 @@ def refresh(request):
                },
                status=status.HTTP_401_UNAUTHORIZED
           )
+@extend_schema(request=None, responses={200: None})
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def logout(request):
@@ -125,6 +134,7 @@ def logout(request):
 
      return response
 
+@extend_schema(responses={200: UserSerializer})
 @ensure_csrf_cookie
 @api_view(['GET'])
 def me(request):

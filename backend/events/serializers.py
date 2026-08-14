@@ -30,7 +30,7 @@ class EventSerializer(serializers.ModelSerializer):
                'updated_at',
           ]
 
-     def get_vagas_disponiveis(self, obj):
+     def get_vagas_disponiveis(self, obj) -> int:
           reservado = getattr(obj, 'reservado', None) or 0
           return max(obj.capacity - reservado, 0)
 

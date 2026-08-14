@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from .tmdb_client import TMDbClientError, buscar_filmes_em_cartaz
 from .models import Event
@@ -21,6 +22,10 @@ class EventPagination(PageNumberPagination):
      max_page_size = 50
 
 
+@extend_schema(
+     responses={200: None},
+     description='Lista bruta de filmes em cartaz na TMDb, usada pelo organizador como base de conteúdo ao criar um evento.',
+)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def catalogo(request):
@@ -33,6 +38,17 @@ def catalogo(request):
           )
      return Response(filmes)
 
+@extend_schema(
+     responses={200: EventSerializer(many=True)},
+     description='Catálogo público e paginado de eventos publicados. Resposta real é paginada (`{count, next, previous, results}`).',
+     parameters=[
+          OpenApiParameter('search', str, description='Filtra por título (case-insensitive, contém).'),
+          OpenApiParameter('date', str, description='Filtra por data exata, formato ISO (YYYY-MM-DD).'),
+          OpenApiParameter('price_min', str, description='Preço mínimo.'),
+          OpenApiParameter('price_max', str, description='Preço máximo.'),
+          OpenApiParameter('page', int, description='Número da página.'),
+     ],
+)
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_eventos(request):
@@ -82,6 +98,10 @@ def get_eventos(request):
      serializer = EventSerializer(page, many=True)
      return paginator.get_paginated_response(serializer.data)
 
+@extend_schema(
+     responses={200: EventSerializer(many=True)},
+     description='Eventos do organizador autenticado (não paginado). Resposta real: `{"eventos": [...]}`.',
+)
 @api_view(['GET'])
 @permission_classes([IsOrganizador])
 def get_eventos_organizador(request):
@@ -90,6 +110,7 @@ def get_eventos_organizador(request):
      serializer = EventSerializer(eventos, many=True)
      return Response({"eventos": serializer.data}, status=status.HTTP_200_OK)
 
+@extend_schema(request=EventWriteSerializer, responses={201: EventSerializer})
 @api_view(["POST"])
 @permission_classes([IsOrganizador])
 def criar_evento(request):
@@ -101,6 +122,11 @@ def criar_evento(request):
      response = Response(EventSerializer(evento).data, status=status.HTTP_201_CREATED)
      return response
 
+@extend_schema(
+     request=EventWriteSerializer,
+     responses={200: EventSerializer, 204: None, 403: None},
+     description='PUT/PATCH atualizam o evento (apenas o organizador dono); DELETE remove.',
+)
 @api_view(['PUT', 'PATCH', 'DELETE'])
 @permission_classes([IsOrganizador])
 def update_evento(request, pk):
