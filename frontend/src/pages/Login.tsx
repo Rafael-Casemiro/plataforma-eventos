@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import type { AxiosError } from 'axios'
 import { useAuth } from '../context/AuthContext'
 
@@ -84,6 +84,13 @@ export default function Login() {
         >
           {isSubmitting ? 'Entrando...' : 'Entrar'}
         </button>
+
+        <p className="mt-4 text-center text-sm text-neutral-500">
+          Ainda não tem uma conta?{' '}
+          <Link to="/cadastro" className="text-accent hover:underline">
+            Cadastre-se
+          </Link>
+        </p>
       </form>
     </main>
   )

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import Login from './pages/Login'
+import Cadastro from './pages/Cadastro'
 import ListagemPublica from './pages/ListagemPublica'
 import PainelOrganizador from './pages/PainelOrganizador'
 import MinhasReservas from './pages/MinhasReservas'
@@ -15,6 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<ListagemPublica />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Cadastro />} />
           <Route
             path="/ingresso/:shareToken"
             element={<IngressoCompartilhado />}
